@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Change configuration - {{endpoint}}</title>
+  <script src="https://cdn.jsdelivr.net/ace/1.2.3/min/ace.js"></script>
+
+  <link rel="stylesheet" href="/style.css">
+  <style>
+  .editor {
+    width: 100%;
+    min-height: 300px;
+  }
+  .eui {
+    display: inline-block;
+    width: 200px;
+  }
+  .euiv {
+    color: black;
+    font-weight: 400;
+  }
+  .euiv input {
+    font-family: 'Open Sans', Arial, sans-serif;
+    width: 300px;
+    font-weight: 400;
+    font-size: 16px;
+    color: #333;
+    margin-left: -2px;
+  }
+  .error {
+    text-align: center;
+    background: red;
+    color: white;
+    padding: 10px;
+  }
+  .two-columns {
+    display: flex;
+    flex-direction: row;
+  }
+  .two-columns h2 {
+    margin-top: 0;
+  }
+  .two-columns .col1 {
+    flex-grow: 1;
+  }
+  .two-columns .col2 {
+    margin: 0 20px 0 20px;
+    padding: 0;
+    min-width: 400px;
+  }
+  pre {
+    font-size: 13px;
+  }
+  #model-error {
+    color: red;
+    padding-top: 20px;
+  }
+  body .show-on-unconfigured {
+    display: none;
+  }
+  body.unconfigured .show-on-unconfigured {
+    display: block;
+  }
+  body.unconfigured .hide-on-unconfigured {
+    display: none;
+  }
+  body .show-on-unconnected {
+    display: none;
+  }
+  body.unconnected .show-on-unconnected {
+    display: block;
+  }
+  body.unconnected .hide-on-unconnected {
+    display: none;
+  }
+  #trying-to-connect {
+    text-align: center;
+    margin-top: 100px;
+  }
+  #trying-to-connect .loader {
+    width: 40px;
+    height: 40px;
+  }
+  #state2 {
+    font-weight: 500;
+    font-style: italic;
+  }
+  .gatt-container h2 small {
+    visibility: hidden;
+    font-size: 14px;
+  }
+  .gatt-container:hover h2 small {
+    visibility: visible;
+  }
+  @media (max-width: 900px) {
+    .two-columns {
+      flex-direction: column;
+    }
+    .two-columns .col2 {
+      margin: 20px 0 0 0;
+    }
+  }
+  #delete {
+    margin: 50px 0 0 0;
+    text-align: right;
+  }
+  .delete {
+    background-color: red;
+    color: white;
+    border-color: pink;
+  }
+  </style>
+</head>
+
+<body class="unconnected {{unconfigured}}">
+  <div id="header">
+    <a href="/"><img id="logo" src="/ARMmbedLogo.svg"></a>
+  </div>
+
+  <form method="post" action="/device/{{deveui}}/update" id="save">
+    <h1>Configure LWM2M</h1>
+
+    {{#if error}}
+    <div class="error">
+      There is an error with this definition, it will not be loaded.<br>
+      <strong>{{error}}</strong>
+    </div>
+    {{/if}}
+
+    {{#if saved}}
+    <div class="green notification">
+      &#x2713; Your changes have been saved
+    </div>
+    {{/if}}
+
+    {{#if created}}
+    <div class="green notification">
+      &#x2713; Your device has been created
+    </div>
+    {{/if}}
+
+    <p><span class="eui">Connector endpoint</span> <span class="euiv">{{endpoint}}</span></p>
+    <p><span class="eui">Connector type</span> <span class="euiv"><input name="mbed_type" placeholder="Enter device type" value="{{mbed_type}}"></span></p>
+    <p><span class="eui">Bluetooth</span> <span class="euiv">{{localName}} - <span id="state">{{state}}</span><span id="stateError">{{stateError}}</span></span></span></p>
+
+    <div id="autoconfig" class="show-on-unconfigured hide-on-unconnected">
+      <h2>Configure your device</h2>
+      <p>
+        We need to know how to map GATT characteristics to LWM2M rules.
+        We can automatically do this for the following services found on this device.
+      </p>
+      <ul id="autoconfig-services">
+      </ul>
+      <p>For other services you'll need to write custom rules. Would you like to import rules for these services?</p>
+      <p>
+        <button id="yes">Yes, create rules for me</button>
+        <button id="no">No thanks, I'll write them myself</button>
+      </p>
+    </div>
+
+    <div id="trying-to-connect" class="show-on-unconnected">
+      <h2>We're trying to connect to your device</h2>
+      <div class="loader"></div>
+      <p id="state2">Searching...</p>
+    </div>
+
+    <div class="hide-on-unconnected hide-on-unconfigured">
+      <h2>Resources</h2>
+      <p>This is the list of resources that should be exposed.</p>
+      <input type="hidden" name="read" value="{{read}}">
+      <input type="hidden" name="write" value="{{write}}">
+      <div class="two-columns">
+        <div class="col1">
+          <h2>Read definitions</h2>
+          <div class="editor" id="read">{{read}}</div>
+          <h2>Write definitions</h2>
+          <div class="editor" id="write">{{write}}</div>
+        </div>
+        <div class="col2">
+          <h2>Current model</h2>
+          <pre id="lwm2m-data">{{lwm2m}}</pre>
+        </div>
+      </div>
+      <div id="model-error"></div>
+
+      <div class="gatt-container">
+        <h2>GATT characteristics <small><a id="rediscover" href="#">(rediscover)</a></small></h2>
+        <pre id="gatt">{{gatt}}</pre>
+      </div>
+
+      <p><input type="submit" value="Save"></p>
+    </div>
+  </form>
+
+  <form method="post" action="/device/{{deveui}}/delete" id="delete">
+    <p>
+      <input type="submit" value="Delete this device" class="delete">
+    </p>
+  </form>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/known-services.js"></script>
+  <script>
+    /*global ace io knownServices */
+    var editorread = ace.edit("read");
+    var editorwrite = ace.edit("write");
+    editorread.setTheme("ace/theme/textmate");
+    editorread.getSession().setMode("ace/mode/javascript");
+    editorread.getSession().setOption("useWorker", false);
+    editorwrite.setTheme("ace/theme/textmate");
+    editorwrite.getSession().setMode("ace/mode/javascript");
+    editorwrite.getSession().setOption("useWorker", false);
+
+    var modelDirty = false;
+    function updateModel() {
+      modelDirty = true;
+
+      if (document.body.classList.contains('unconfigured')) {
+        updateAutoConfig();
+      }
+
+      try {
+        var lw = new Function('return ' + editorread.getValue())();
+        document.querySelector('#model-error').style.display = 'none';
+
+        var gatt = JSON.parse(document.querySelector('#gatt').textContent);
+
+        for (var s in gatt) {
+          for (var c in gatt[s]) {
+            (function(c, originalFn) {
+              c.toString = function(a) {
+                if (a === 'ascii' || a === 'utf-8') {
+                  return c.map(function(a) {
+                    return String.fromCharCode(a);
+                  }).join('');
+                }
+                return originalFn.apply(c, arguments);
+              };
+            })(gatt[s][c], gatt[s][c].toString);
+          }
+        }
+
+        document.querySelector('#lwm2m-data').textContent = JSON.stringify(
+          Object.keys(lw).reduce(function(curr, k) {
+            try {
+              curr[k] = lw[k](gatt);
+            }
+            catch (ex) {
+              curr[k] = 'ERR: ' + ex;
+            }
+            return curr;
+          }, {}), null, 4);
+      }
+      catch (ex) {
+        console.trace();
+        document.querySelector('#model-error').textContent = 'Model is not valid: ' + ex;
+        document.querySelector('#model-error').style.display = 'block';
+      }
+    }
+
+    editorread.on('change', updateModel);
+
+    document.querySelector('#save').onsubmit = function() {
+      document.querySelector('input[name="read"]').value = editorread.getValue();
+      document.querySelector('input[name="write"]').value = editorwrite.getValue();
+
+      try {
+        var lw = new Function('return ' + editorread.getValue())();
+        if (typeof lw !== 'object') throw 'Read should return an object';
+      }
+      catch (ex) {
+        alert('read content is not valid! ' + ex);
+        return false;
+      }
+
+      try {
+        var lw2 = new Function('return ' + editorwrite.getValue())();
+        if (typeof lw2 !== 'object') throw 'Read should return an object';
+      }
+      catch (ex) {
+        alert('write content is not valid! ' + ex);
+        return false;
+      }
+    };
+
+    document.querySelector('#rediscover').onclick = function() {
+      socket.emit('disconnect-device');
+      return false;
+    };
+
+    var socket = io.connect(location.origin);
+    socket.on('connect', function() {
+      socket.emit('subscribe', '{{deveui}}');
+    });
+
+    socket.on('statechange', function(state, error) {
+      document.querySelector('#state').textContent = state;
+      document.querySelector('#stateError').textContent = error ? (' - ' + error) : '';
+      stateChange(state);
+    });
+    socket.on('modelchange', function(model) {
+      document.querySelector('#gatt').textContent = model;
+      updateModel();
+    });
+    socket.on('lwm2mchange', function(lw) {
+      if (!modelDirty) {
+        document.querySelector('#lwm2m-data').textContent = lw;
+      }
+    });
+
+    function stateChange(state) {
+      state = state || document.querySelector('#state').textContent;
+      if (state !== 'Connected') {
+        document.body.classList.add('unconnected');
+      }
+      else {
+        document.body.classList.remove('unconnected');
+      }
+      document.querySelector('#state2').textContent = (state === 'Disconnected' ? 'Searching' : state) + '...';
+
+      if (state === 'Connected' && document.body.classList.contains('unconfigured')) {
+        updateAutoConfig();
+      }
+    }
+    stateChange();
+
+    function updateAutoConfig() {
+      document.querySelector('#autoconfig-services').innerHTML = '';
+
+      var known = knownServices.getServicesAsString(JSON.parse(document.querySelector('#gatt').textContent));
+
+      known.forEach(function(txt) {
+        var li = document.createElement('li');
+        li.textContent = txt;
+        document.querySelector('#autoconfig-services').appendChild(li);
+      });
+    }
+
+    document.querySelector('#yes').onclick = function() {
+
+      var gatt = JSON.parse(document.querySelector('#gatt').textContent);
+      var model = knownServices.generateModel(gatt);
+
+      editorread.setValue(model.read);
+      editorwrite.setValue(model.write);
+
+      // auto-saves, because we don't cancel the request
+    };
+
+    document.querySelector('#no').onclick = function() {
+      document.body.classList.remove('unconfigured');
+      return false;
+    };
+
+    document.querySelector('#delete').onsubmit = function() {
+      if (!confirm('Are you really sure you want to delete this device?')) {
+        return false;
+      }
+    };
+  </script>
+
+  <script src="/clear-querystring.js"></script>
+</body>
+</html>

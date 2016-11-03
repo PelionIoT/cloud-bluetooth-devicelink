@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Change configuration - {{endpoint}}</title>
+  <script src="https://cdn.jsdelivr.net/ace/1.2.3/min/ace.js"></script>
+
+  <link rel="stylesheet" href="/style.css">
+  <style>
+  #securityh {
+    width: 100%;
+    height: 500px;
+  }
+  #devices-wrapper {
+      border: solid 1px #ccc;
+  }
+  #devices {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+  }
+  #devices li {
+      padding: 20px 20px;
+      cursor: pointer;
+      border-bottom: solid 1px #ddd;
+  }
+  #devices li:hover {
+      background-color: #E6F9FF;
+  }
+  #devices p {
+      margin: 0;
+  }
+  #devices .title {
+      font-size: 26px;
+      font-weight: 400;
+      margin-bottom: 20px;
+  }
+  #devices .eui {
+      color: #ccc;
+  }
+  body.step1 #step2 {
+      display: none;
+  }
+  body.step2 #step1 {
+      display: none;
+  }
+  </style>
+</head>
+
+<body class="step1">
+  <div id="header">
+    <a href="/"><img id="logo" src="/ARMmbedLogo.svg"></a>
+  </div>
+  <form method="post" action="/new-device" id="save">
+    <h1>Connect new device</h1>
+
+    <div id="step1">
+        <h2>Select the device you'd like to connect</h2>
+        <div id="devices-wrapper">
+            <ul id="devices">
+            </ul>
+            <div class="loader"></div>
+        </div>
+    </div>
+
+    <div id="step2">
+        <h2>Paste your security.h file here:</h2>
+        <div id="securityh"></div>
+
+        <input type="hidden" name="eui">
+        <input type="hidden" name="security">
+
+        <p><input type="submit" value="Continue"></p>
+    </div>
+  </form>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    var SELECTED_DEVICE;
+
+    var socket = io.connect(location.origin);
+    socket.on('connect', function() {
+      socket.emit('subscribe-seen');
+    });
+
+    socket.on('seen', function(device) {
+        if (!device) {
+            console.error('Got a seen message without device?!');
+            return;
+        }
+        var el = document.querySelector('li[data-eui="' + (device.eui || device.name) + '"]');
+        if (!el) {
+            el = document.createElement('li');
+            el.dataset.eui = device.eui;
+            el.innerHTML = '<p class="title"><span class="name"></span> <span class="eui"></span></p>\n' +
+                '<p>RSSI: <span class="rssi"></span> dBm - Services: <span class="services"></span></p>';
+            document.querySelector('#devices').appendChild(el);
+
+            el.onclick = function() {
+                document.querySelector('input[name="eui"]').value = device.eui;
+
+                document.body.classList.remove('step1');
+                document.body.classList.add('step2');
+            };
+        }
+
+        el.querySelector('.name').textContent = device.name || device.eui;
+        el.querySelector('.eui').textContent = device.name && device.eui !== device.name ? device.eui : '';
+        el.querySelector('.rssi').textContent = device.rssi;
+        if (device.services.length > 0) {
+            el.querySelector('.services').textContent = '[ ' + device.services.join(', ') + ' ]';
+        }
+        else {
+            el.querySelector('.services').textContent = 'Unknown';
+        }
+    });
+
+  </script>
+  <script>
+    /*global ace */
+    var sec = ace.edit("securityh");
+    sec.setTheme("ace/theme/textmate");
+    sec.getSession().setMode("ace/mode/c_cpp");
+
+    document.querySelector('#save').onsubmit = function() {
+        var mbed_domain = sec.getValue().match(/MBED_DOMAIN \"(.+)\"/)[1];
+        if (!mbed_domain) {
+            alert('Could not find mbed_domain');
+            return false;
+        }
+        var mbed_endpoint_name = sec.getValue().match(/MBED_ENDPOINT_NAME \"(.+)\"/)[1];
+        if (!mbed_endpoint_name) {
+            alert('Could not find mbed_endpoint_name');
+            return false;
+        }
+        var server_cert = sec.getValue().match(/SERVER_CERT\[\] = \"([^;]*)/m)[1].replace(/[\r\n"]/g, "").replace(/\\n/g, '\n').replace(/\\r/g, '\r');
+        if (!server_cert) {
+            alert('Could not find server_cert');
+            return false;
+        }
+        var cert = sec.getValue().match(/8_t CERT\[\] = \"([^;]*)/m)[1].replace(/[\r\n"]/g, "").replace(/\\n/g, '\n').replace(/\\r/g, '\r');
+        if (!cert) {
+            alert('Could not find cert');
+            return false;
+        }
+        var key = sec.getValue().match(/8_t KEY\[\] = \"([^;]*)/m)[1].replace(/[\r\n"]/g, "").replace(/\\n/g, '\n').replace(/\\r/g, '\r');
+        if (!key) {
+            alert('Could not find key');
+            return false;
+        }
+
+        document.querySelector('input[name="security"]').value = JSON.stringify({
+            mbed_domain: mbed_domain,
+            mbed_endpoint_name: mbed_endpoint_name,
+            server_cert: server_cert,
+            cert: cert,
+            key: key
+        });
+    };
+  </script>
+  
+  <script src="/clear-querystring.js"></script>
+</body>
+</html>

@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Pick an endpoint</title>
+  <link rel="stylesheet" href="/style.css">
+  <style>
+    li span.error {
+      font-weight: bold;
+      color: red;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="header">
+    <a href="/"><img id="logo" src="/ARMmbedLogo.svg"></a>
+  </div>
+
+  <h1>mbed Bluetooth Router</h1>
+
+    {{#if deleted}}
+    <div class="green notification">
+      &#x2713; Device has been deleted
+    </div>
+    {{/if}}
+
+  <p>
+    This is the Bluetooth bridge for mbed Device Connector.
+    It acts as a bridge between Connector and Bluetooth Low Energy devices.
+    This interface is used to create new devices, and to manage the mapping between GATT characteristics and LWM2M.
+  </p>
+  <p>The following devices have been configured:</p>
+  <ul>
+  {{#endpoints}}
+    <li><a href="/device/{{deveui}}" title="{{title}}">
+      {{endpoint}}
+      {{#if notConnected}}
+        <span class="state">({{state}}{{stateError}})</span>
+      {{else}}
+        {{state}} <span class="state">({{localName}})</span>
+      {{/if}}
+      {{#if error}}
+        <span class="error">{{error}}</span>
+      {{/if}}
+    </a></li>
+  {{/endpoints}}
+  </ul>
+  <p>
+    <strong><a href="/new-device">+ Connect new device</a></strong>
+  </p>
+  <script src="/clear-querystring.js"></script>
+</body>
+</html>
