@@ -1,11 +1,11 @@
-# Bluetooth bridge
+# mbed Cloud Bluetooth Devicelink
 
-This is an *experimental* bridge to connect Bluetooth Low Energy devices into mbed Device Connector.
+This is an *experimental* way to connect Bluetooth Low Energy devices into mbed Device Connector and mbed Cloud.
 
 ## Setup
 
-1. Install [mbed-client-linux-gateway](https://github.com/armmbed/mbed-client-linux-gateway).
-    * You can run mbed-client-linux-gateway in an Ubuntu VM and this bridge on your main OS.
+1. Install [mbed Cloud Linux Devicelink](https://github.com/armmbed/cloud-linux-devicelink).
+    * You can run mbed Cloud Linux Devicelink in an Ubuntu VM and this application on your main OS.
 2. Install [node.js 6+](https://nodejs.org/en/).
 
 Then, on Ubuntu/Debian:
@@ -23,7 +23,7 @@ $ npm install
 $ node bt.js
 ```
 
-The bridge opens a webserver on `localhost:3000` and a TCP socket on `localhost:1337`. Start mbed-client-linux-gateway and connect it to the TCP socket for the full bridge to work.
+mbed CloudBluetooth Devicelink opens a webserver on `localhost:3000` and a TCP socket on `localhost:1337`. Start mbed Cloud Linux Devicelink and connect it to the TCP socket to bridge the devices into mbed Device Connector.
 
 Now navigate to the web interface at http://localhost:3000 and add your device.
 
@@ -39,7 +39,7 @@ In the web interface there are two editors, one for read-mappings and one for wr
 
 ### Known-services
 
-You can re-use mappings. See the 'webserver/public/known-services' folder. If the bridge encounters these services it will autogenerate the mapping.
+You can re-use mappings. See the 'webserver/public/known-services' folder. If Bluetooth Devicelink encounters these services it will autogenerate the mapping.
 
 ### Read mapping
 
@@ -86,4 +86,4 @@ Defines what should happen when a resource was updated in mbed Device Connector,
 ## TODO
 
 * Can only connect to unprotected devices (no security features).
-* [status-change](https://github.com/armmbed/mbed-client-linux-gateway#status-in-connector-changed) events are not handled.
+* [status-change](https://github.com/armmbed/cloud-linux-devicelink#status-in-connector-changed) events are not handled.

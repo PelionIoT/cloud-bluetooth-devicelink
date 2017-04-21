@@ -1,8 +1,7 @@
 {
-  "name": "bluetooth-bridge",
-  "private": true,
+  "name": "mbed-cloud-bluetooth-devicelink",
   "version": "1.0.0",
-  "description": "Connector Bluetooth Bridge",
+  "description": "mbed Cloud Bluetooth Devicelink - bridges BLE devices into mbed Device Connector / mbed Cloud",
   "main": "bt.js",
   "author": "Jan Jongboom <jan.jongboom@arm.com>",
   "dependencies": {

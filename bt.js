@@ -110,19 +110,19 @@ noble.on('discover', co.wrap(function*(peripheral) {
       // don't do this for now, seems macOS only...
 
       return;
-      // connectedOnce[ad.localName] = true;
+      connectedOnce[ad.localName] = true;
 
       // // connect and disconnect straight away. that should help.
-      // console.log(`[${ad.localName}] connecting to find out address...`);
-      // var pto = setTimeout(() => {
-      //   console.log(`[${ad.localName}] failed to connect`);
-      //   peripheral.disconnect();
-      // }, 10000);
-      // peripheral.connect(function(err, bla) {
-      //   clearTimeout(pto);
-      //   peripheral.disconnect(function() {});
-      // });
-      // return;
+      console.log(`[${ad.localName}] connecting to find out address...`);
+      var pto = setTimeout(() => {
+        console.log(`[${ad.localName}] failed to connect`);
+        peripheral.disconnect();
+      }, 10000);
+      peripheral.connect(function(err, bla) {
+        clearTimeout(pto);
+        peripheral.disconnect(function() {});
+      });
+      return;
     }
 
     if (peripheral.address === 'unknown') return;
@@ -223,24 +223,42 @@ var connect = co.wrap(function*(p, definition, localName) {
     log('Connected, reading characteristics');
     devices[p.address].updateState('discovering-services');
     var services = yield promisify(p.discoverServices.bind(p))([]);
+    log(services);
     devices[p.address].updateState('discovering-characteristics');
     for (let ix = 0; ix < services.length; ix++) {
       let service = services[ix];
+      log('Gonna do service', service.uuid);
       model[service.uuid] = {};
       charsModel[service.uuid] = {};
 
-      let chars = yield promisify(service.discoverCharacteristics.bind(service))([]);
+      log('Discovering services for', service.uuid);
+      let chars;
+      try {
+        chars = yield promisify(service.discoverCharacteristics.bind(service))([]);
+      }
+      catch (ex) {
+        console.error('Something happened...', chars);
+        throw ex;
+      }
+      log('Got characteristics', service.uuid, chars);
       devices[p.address].updateState('reading-characteristics');
 
       for (let cx = 0; cx < chars.length; cx++) {
+        log('Dafuq', chars[cx].uuid);
+
         let char = chars[cx];
+
+        if (char.uuid == 9801) continue;
 
         charsModel[service.uuid][char.uuid] = char;
 
         if (char.properties.indexOf('read') > -1) {
+          log('Reading', char.uuid);
           model[service.uuid][char.uuid] = yield promisify(char.read.bind(char))();
+          log(char.uuid, model[service.uuid][char.uuid]);
         }
         if (char.properties.indexOf('notify') > -1) {
+          log('Gonna subscribe', char.uuid);
           char.on('read', v => {
             model[service.uuid][char.uuid] = v;
 
@@ -273,7 +291,8 @@ var connect = co.wrap(function*(p, definition, localName) {
             });
           });
           // enable notify
-          yield promisify(char.notify.bind(char))(true);
+          // yield promisify(char.notify.bind(char))(true);
+          log('Done subscribe', char.uuid);
         }
       }
     }
