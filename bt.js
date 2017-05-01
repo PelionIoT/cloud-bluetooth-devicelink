@@ -227,7 +227,6 @@ var connect = co.wrap(function*(p, definition, localName) {
     devices[p.address].updateState('discovering-characteristics');
     for (let ix = 0; ix < services.length; ix++) {
       let service = services[ix];
-      log('Gonna do service', service.uuid);
       model[service.uuid] = {};
       charsModel[service.uuid] = {};
 
@@ -244,8 +243,6 @@ var connect = co.wrap(function*(p, definition, localName) {
       devices[p.address].updateState('reading-characteristics');
 
       for (let cx = 0; cx < chars.length; cx++) {
-        log('Dafuq', chars[cx].uuid);
-
         let char = chars[cx];
 
         if (char.uuid == 9801) continue;
