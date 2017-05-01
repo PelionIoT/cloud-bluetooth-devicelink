@@ -288,8 +288,8 @@ var connect = co.wrap(function*(p, definition, localName) {
             });
           });
           // enable notify
-          // yield promisify(char.notify.bind(char))(true);
-          log('Done subscribe', char.uuid);
+          yield promisify(char.notify.bind(char))(true);
+          log('Subscribed', char.uuid);
         }
       }
     }
