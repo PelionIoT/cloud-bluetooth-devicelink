@@ -7,10 +7,6 @@
 
   <link rel="stylesheet" href="/style.css">
   <style>
-  #securityh {
-    width: 100%;
-    height: 500px;
-  }
   #devices-wrapper {
       border: solid 1px #ccc;
   }
@@ -44,6 +40,19 @@
   body.step2 #step1 {
       display: none;
   }
+  .select-service label {
+    padding-right: 20px;
+    font-size: 16px;
+  }
+  .creds {
+    font-size: 20px;
+    width: 400px;
+  }
+  hr {
+    height: 1px;
+    border: none;
+    background: lightgray;
+  }
   </style>
 </head>
 
@@ -64,11 +73,30 @@
     </div>
 
     <div id="step2">
-        <h2>Paste your security.h file here:</h2>
-        <div id="securityh"></div>
+        <h2>Where do you want to provision this device?</h2>
+        <p class="select-service">
+            <label><input type="radio" name="service" value="connector" checked="checked"> mbed Device Connector</label>
+            <label><input type="radio" name="service" value="cloud" disabled="disabled">mbed Cloud</label>
+        </p>
+
+        <hr>
+
+        <div id="connector">
+            <h2>What is your mbed Device Connector domain?</h2>
+            <p>The domain is listed in <a href="https://connector.mbed.com/#credentials" target="_blank">security certificates</a>.</p>
+            <p>
+                <input name="connector_domain" class="creds">
+            </p>
+
+            <h2>mbed Device Connector Access Key</h2>
+            <p>
+                <input name="connector_ak" class="creds">
+            </p>
+        </div>
+
+        <div id="cloud"><!--todo--></div>
 
         <input type="hidden" name="eui">
-        <input type="hidden" name="security">
 
         <p><input type="submit" value="Continue"></p>
     </div>
@@ -117,48 +145,25 @@
 
   </script>
   <script>
-    /*global ace */
-    var sec = ace.edit("securityh");
-    sec.setTheme("ace/theme/textmate");
-    sec.getSession().setMode("ace/mode/c_cpp");
-
     document.querySelector('#save').onsubmit = function() {
-        var mbed_domain = sec.getValue().match(/MBED_DOMAIN \"(.+)\"/)[1];
-        if (!mbed_domain) {
-            alert('Could not find mbed_domain');
-            return false;
-        }
-        var mbed_endpoint_name = sec.getValue().match(/MBED_ENDPOINT_NAME \"(.+)\"/)[1];
-        if (!mbed_endpoint_name) {
-            alert('Could not find mbed_endpoint_name');
-            return false;
-        }
-        var server_cert = sec.getValue().match(/SERVER_CERT\[\] = \"([^;]*)/m)[1].replace(/[\r\n"]/g, "").replace(/\\n/g, '\n').replace(/\\r/g, '\r');
-        if (!server_cert) {
-            alert('Could not find server_cert');
-            return false;
-        }
-        var cert = sec.getValue().match(/8_t CERT\[\] = \"([^;]*)/m)[1].replace(/[\r\n"]/g, "").replace(/\\n/g, '\n').replace(/\\r/g, '\r');
-        if (!cert) {
-            alert('Could not find cert');
-            return false;
-        }
-        var key = sec.getValue().match(/8_t KEY\[\] = \"([^;]*)/m)[1].replace(/[\r\n"]/g, "").replace(/\\n/g, '\n').replace(/\\r/g, '\r');
-        if (!key) {
-            alert('Could not find key');
-            return false;
-        }
+        var domain = document.querySelector('input[name="connector_domain"]').value;
+        var ak = document.querySelector('input[name="connector_ak"]').value;
 
-        document.querySelector('input[name="security"]').value = JSON.stringify({
-            mbed_domain: mbed_domain,
-            mbed_endpoint_name: mbed_endpoint_name,
-            server_cert: server_cert,
-            cert: cert,
-            key: key
-        });
+        if (!domain) {
+            alert('Please enter your Connector domain');
+            return false;
+        }
+        if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(domain)) {
+            alert('Domain is not a valid UUID');
+            return false;
+        }
+        if (!ak) {
+            alert('Please enter your Connector access key');
+            return false;
+        }
     };
   </script>
-  
+
   <script src="/clear-querystring.js"></script>
 </body>
 </html>

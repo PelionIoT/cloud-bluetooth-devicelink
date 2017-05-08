@@ -18,7 +18,7 @@ app.engine('html', require('hbs').__express);
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: false }));
 
-module.exports = function start(devices, seen, ee, createDevice) {
+module.exports = function start(devices, seen, ee, createDevice, clientService) {
 
 function mapState(state) {
     switch (state) {
@@ -158,7 +158,7 @@ app.get('/device/:deveui', wrap(function*(req, res, next) {
             Object.keys(sandbox.module.exports.read)[0] === 'example/0/rule') ? 'unconfigured' : '',
         mbed_type: sandbox.module.exports.security.mbed_type || ''
     };
-    
+
     res.render('device.html', model);
 }));
 
@@ -202,10 +202,32 @@ app.get('/new-device', wrap(function*(req, res, next) {
 }));
 
 app.post('/new-device', wrap(function*(req, res, next) {
+    // add the device in mbed Client Service
+    try {
+        console.log('Creating new device in mbed-client-service');
+
+        var clientDevice = yield clientService.createConnectorDevice(req.body.connector_domain,
+            req.body.connector_ak,
+            'test',
+            [
+                { path: '/example/0/rule', valueType: 'dynamic', operation: ['GET', 'PUT'], observable: true }
+            ]);
+    }
+    catch (ex) {
+        console.error('Creating device in mbed-client-service failed', ex);
+        throw 'Creating device in mbed-client-service failed, ' + ex.message;
+    }
+
+    console.log('Created new device in mbed-client-service');
+
     var file = JSON.stringify({
         type: 'create-device',
         deveui: req.body.eui,
-        security: JSON.parse(req.body.security),
+        security: {
+            mbed_endpoint_name: clientDevice.id,
+            mbed_domain: req.body.connector_domain,
+            accessKey: req.body.connector_ak,
+        },
         read: {
             "example/0/rule": "1PLACEHOLDER"
         },

@@ -10,12 +10,15 @@ const vm = require('vm');
 const startWebserver = require('./webserver/webserver.js');
 const EventEmitter = require('events');
 const chokidar = require('chokidar');
+const ClientService = require('../mbed-client-service-library-js');
 
 var logSeenDevices = process.argv.indexOf('--log-seen-devices') > -1;
 
 var devices = {};
 var seen = {};
 var ee = new EventEmitter();
+
+var clientService = new ClientService('http://apm-lora-eu2.cloudapp.net:3030');
 
 function createDevice(eui) {
   devices[eui] = {
@@ -39,16 +42,58 @@ function createDevice(eui) {
       var writeKeys = Object.keys(this.definition.write);
       var allKeys = readKeys.concat(writeKeys);
 
-      return allKeys.reduce((curr, route) => {
-        try {
-          curr[route] = {
-            mode: (readKeys.indexOf(route) > -1 ? 'r' : '') + (writeKeys.indexOf(route) > -1 ? 'w' : ''),
-            defaultValue: (readKeys.indexOf(route) > -1 ? this.definition.read[route](this.model) : '').toString()
-          };
-        }
-        catch (ex) { /* ignore if fails */ }
-        return curr;
-      }, {});
+      allKeys = allKeys.filter((v, i, a) => a.indexOf(v) === i);
+
+      return allKeys.map(k => {
+        var op = [];
+        if (readKeys.indexOf(k) > -1) op.push('GET');
+        if (writeKeys.indexOf(k) > -1) op.push('PUT');
+        return {
+          path: "/" + k,
+          valueType: "dynamic",
+          operation: op,
+          value: (readKeys.indexOf(k) > -1 ? this.definition.read[k](this.model) : '').toString(),
+          observable: (readKeys.indexOf(k) > -1 ? true : undefined)
+        };
+      });
+    },
+    verifyModelChanged: function() {
+      // do a compare of the clientDevice and the lwm2m model here...
+      // If it's changed we need to update it in mbed-client-service
+      var old = Object.keys(this.definition.clientDevice.resources).map(k => {
+        var rule = Object.assign({}, this.definition.clientDevice.resources[k]);
+        delete rule.value;
+        return rule;
+      });
+      var nw = this.lwm2m.map(rule => {
+        rule = Object.assign({}, rule);
+        delete rule.value;
+        return rule;
+      });
+
+      console.log('old', old, '\n', 'new', nw, 'changed', JSON.stringify(old) !== JSON.stringify(nw));
+
+      if (JSON.stringify(old) !== JSON.stringify(nw)) {
+        var self = this;
+
+        co.wrap(function*() {
+          console.log('Model changed, gonna re-create the device in mbed-client-service');
+
+          yield clientService.deleteDevice(self.definition.clientDevice.id);
+
+          var nd = yield clientService.createConnectorDevice(self.definition.security.mbed_domain,
+            self.definition.security.access_key,
+            self.definition.security.mbed_type || 'test',
+            self.lwm2m);
+
+          self.definition.clientDevice = nd;
+
+          console.log('Recreated the device, new ID is', nd.id);
+
+          // @todo, update the .js file!!
+
+        })();
+      }
     }
   };
 }
@@ -59,7 +104,7 @@ fs.readdirSync(Path.join(__dirname, 'devices')).filter(f => {
   createDevice(f);
 });
 
-startWebserver(devices, seen, ee, createDevice);
+startWebserver(devices, seen, ee, createDevice, clientService);
 
 console.log('Bluetooth state is', noble.state);
 
@@ -69,6 +114,13 @@ function* loadDeviceDefinition(address) {
   let context = new vm.createContext(sandbox);
   let script = new vm.Script(definition);
   script.runInContext(context);
+
+  // load the device from mbed-client-service
+  console.log('Loading device model from mbed-client-service');
+  context.module.exports.clientDevice = yield clientService.getDevice(context.module.exports.security.mbed_endpoint_name);
+  console.log('OK Loading device model from mbed-client-service');
+
+  console.log('Loaded', context.module.exports.clientDevice);
 
   return context.module.exports;
 }
@@ -265,18 +317,23 @@ var connect = co.wrap(function*(p, definition, localName) {
 
             let new_lwm2m = devices[p.address].generateNewLwm2m();
 
-            let changed = Object.keys(new_lwm2m).filter(k => {
-              if (!devices[p.address].lwm2m[k]) return true;
-              return new_lwm2m[k].defaultValue !== devices[p.address].lwm2m[k].defaultValue;
-            }).reduce((curr, k) => {
-              curr[k] = new_lwm2m[k].defaultValue;
-              return curr;
-            }, {});
+            let old_lwm2m = devices[p.address].lwm2m;
+
+            let changed = new_lwm2m.filter(route => {
+              let old_value = (old_lwm2m.find(r => r.path === route.path) || {}).value;
+
+              return old_value !== route.value;
+            });
 
             devices[p.address].updateLwm2m();
 
-            if (Object.keys(changed).length > 0) {
+            if (changed.length > 0) {
               log('Updated routes', changed);
+            }
+
+            for (let ix = 0; ix < changed.length; ix++) {
+              let path = changed[ix].path;
+              devices[p.address].definition.clientDevice.resources[path].setValue(changed[ix].value);
             }
 
             sockets.forEach(socket => {
@@ -306,11 +363,9 @@ var connect = co.wrap(function*(p, definition, localName) {
 
     devices[p.address].ee.emit('modelchange', model);
 
-    log('Initial model is', Object.keys(devices[p.address].lwm2m).reduce((curr, k) => {
-      if (!devices[p.address].lwm2m[k].defaultValue) return curr;
-      curr[k] = devices[p.address].lwm2m[k].defaultValue;
-      return curr;
-    }, {}));
+    log('Initial model is', devices[p.address].lwm2m);
+
+    devices[p.address].verifyModelChanged();
 
     sockets.forEach(socket => {
       socket.write(JSON.stringify(devices[p.address], replacer) + '\n', 'ascii');
@@ -362,19 +417,7 @@ var change = co.wrap(function*(path) {
       // only send update to connector if we're actually connected
       if (devices[eui].state !== 'connected') return;
 
-      sockets.forEach(socket => {
-        socket.write(JSON.stringify({
-          type: "delete-device",
-          deveui: eui
-        }) + '\n');
-      });
-
-      // re-register after 5s.
-      setTimeout(function() {
-        sockets.forEach(socket => {
-          socket.write(JSON.stringify(devices[eui], replacer) + '\n', 'ascii');
-        });
-      }, 5000);
+      device.verifyModelChanged();
     }
     catch (ex) {
       console.error(`[${eui}] Update lwm2m failed`, ex);
