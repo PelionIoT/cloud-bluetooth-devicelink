@@ -79,19 +79,19 @@ function createDevice(eui) {
         co.wrap(function*() {
           console.log('Model changed, gonna re-create the device in mbed-client-service');
 
-          yield clientService.deleteDevice(self.definition.clientDevice.id);
+          console.log('Deregister');
+          yield self.definition.clientDevice.deregister();
+          console.log('OK Deregister');
 
-          var nd = yield clientService.createConnectorDevice(self.definition.security.mbed_domain,
-            self.definition.security.access_key,
-            self.definition.security.mbed_type || 'test',
-            self.lwm2m);
+          console.log('setResourceModel');
+          yield self.definition.clientDevice.setResourceModel(self.lwm2m);
+          console.log('OK setResourceModel');
 
-          self.definition.clientDevice = nd;
+          console.log('Register');
+          yield self.definition.clientDevice.register();
+          console.log('OK Register');
 
-          console.log('Recreated the device, new ID is', nd.id);
-
-          // @todo, update the .js file!!
-
+          console.log('Re-registered the device, new ID is', nd.id);
         })();
       }
     }
@@ -235,10 +235,12 @@ function replacer(key,value){
 }
 
 var connect = co.wrap(function*(p, definition, localName) {
-  devices[p.address].updateState('connecting');
-  devices[p.address].peripheral = p;
-  devices[p.address].definition = definition;
-  devices[p.address].localName = localName;
+  var device = devices[p.address];
+
+  device.updateState('connecting');
+  device.peripheral = p;
+  device.definition = definition;
+  device.localName = localName;
 
   function log(msg) {
     let arg = [].slice.call(arguments, 1);
@@ -252,8 +254,8 @@ var connect = co.wrap(function*(p, definition, localName) {
 
     log('Disconnected');
 
-    if (devices[p.address]) {
-      devices[p.address].updateState('disconnected');
+    if (device) {
+      device.updateState('disconnected');
     }
 
     sockets.forEach(socket => {
@@ -266,17 +268,17 @@ var connect = co.wrap(function*(p, definition, localName) {
   p.on('disconnect', ondisconnect);
 
   try {
-    let model = devices[p.address].model;
-    let charsModel = devices[p.address].charsModel;
+    let model = device.model;
+    let charsModel = device.charsModel;
     let discoveryCompleted = false;
 
     log('Trying to connect');
     yield promisify(p.connect.bind(p))();
     log('Connected, reading characteristics');
-    devices[p.address].updateState('discovering-services');
+    device.updateState('discovering-services');
     var services = yield promisify(p.discoverServices.bind(p))([]);
     log(services);
-    devices[p.address].updateState('discovering-characteristics');
+    device.updateState('discovering-characteristics');
     for (let ix = 0; ix < services.length; ix++) {
       let service = services[ix];
       model[service.uuid] = {};
@@ -292,12 +294,10 @@ var connect = co.wrap(function*(p, definition, localName) {
         throw ex;
       }
       log('Got characteristics', service.uuid, chars);
-      devices[p.address].updateState('reading-characteristics');
+      device.updateState('reading-characteristics');
 
       for (let cx = 0; cx < chars.length; cx++) {
         let char = chars[cx];
-
-        if (char.uuid == 9801) continue;
 
         charsModel[service.uuid][char.uuid] = char;
 
@@ -311,13 +311,13 @@ var connect = co.wrap(function*(p, definition, localName) {
           char.on('read', v => {
             model[service.uuid][char.uuid] = v;
 
-            devices[p.address].ee.emit('modelchange', model);
+            device.ee.emit('modelchange', model);
 
             if (!discoveryCompleted) return;
 
-            let new_lwm2m = devices[p.address].generateNewLwm2m();
+            let new_lwm2m = device.generateNewLwm2m();
 
-            let old_lwm2m = devices[p.address].lwm2m;
+            let old_lwm2m = device.lwm2m;
 
             let changed = new_lwm2m.filter(route => {
               let old_value = (old_lwm2m.find(r => r.path === route.path) || {}).value;
@@ -325,7 +325,7 @@ var connect = co.wrap(function*(p, definition, localName) {
               return old_value !== route.value;
             });
 
-            devices[p.address].updateLwm2m();
+            device.updateLwm2m();
 
             if (changed.length > 0) {
               log('Updated routes', changed);
@@ -333,7 +333,7 @@ var connect = co.wrap(function*(p, definition, localName) {
 
             for (let ix = 0; ix < changed.length; ix++) {
               let path = changed[ix].path;
-              devices[p.address].definition.clientDevice.resources[path].setValue(changed[ix].value);
+              device.definition.clientDevice.resources[path].setValue(changed[ix].value);
             }
 
             sockets.forEach(socket => {
@@ -355,24 +355,24 @@ var connect = co.wrap(function*(p, definition, localName) {
     log('Discovery completed');
 
     // now to make a device for Connector
-    devices[p.address].updateState('connected');
-    devices[p.address].type = 'create-device';
-    devices[p.address].deveui = definition.deveui;
-    devices[p.address].security = definition.security;
-    devices[p.address].updateLwm2m();
+    device.updateState('connected');
+    device.type = 'create-device';
+    device.deveui = definition.deveui;
+    device.security = definition.security;
+    device.updateLwm2m();
 
-    devices[p.address].ee.emit('modelchange', model);
+    device.ee.emit('modelchange', model);
 
-    log('Initial model is', devices[p.address].lwm2m);
+    log('Initial model is', device.lwm2m);
 
-    devices[p.address].verifyModelChanged();
+    device.verifyModelChanged();
 
     sockets.forEach(socket => {
-      socket.write(JSON.stringify(devices[p.address], replacer) + '\n', 'ascii');
+      socket.write(JSON.stringify(device, replacer) + '\n', 'ascii');
     });
   }
   catch (ex) {
-    devices[p.address].updateState('connection-failed', ex);
+    device.updateState('connection-failed', ex);
     console.error('Exception happened', ex);
     p.removeListener('disconnect', ondisconnect);
     p.disconnect();
