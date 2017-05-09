@@ -5,7 +5,6 @@
   "main": "bt.js",
   "author": "Jan Jongboom <jan.jongboom@arm.com>",
   "dependencies": {
-    "architect": "^0.1.13",
     "body-parser": "^1.15.0",
     "chokidar": "^1.4.3",
     "co": "^4.6.0",
