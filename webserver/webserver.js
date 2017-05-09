@@ -1,3 +1,5 @@
+const CON_PREFIX = '\x1b[33m[BTDevicelink]\x1b[0m';
+
 var express = require('express');
 var bodyParser = require('body-parser');
 var co = require('co');
@@ -18,7 +20,7 @@ app.engine('html', require('hbs').__express);
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: false }));
 
-module.exports = function start(devices, seen, ee, createDevice, clientService) {
+module.exports = function start(devices, ble, deviceDb, clientService) {
 
 function mapState(state) {
     switch (state) {
@@ -44,9 +46,9 @@ function mapState(state) {
 function stringifyGatt(gatt) {
     return gatt ? '{\n' + Object.keys(gatt).map(sk => {
         return `    "${sk}": {\n` + Object.keys(gatt[sk]).map(ck => {
-            return `        "${ck}": [ ${gatt[sk][ck].join(', ')} ]`;
+            return `        "${ck}": [ ${gatt[sk][ck].value.join(', ')} ]`;
         }).join(',\n') + '\n    }';
-    }).join(',\n') + '\n}' : 'Waiting for connection...';
+    }).join(',\n') + '\n}' : '{}';
 }
 
 app.get('/', wrap(function*(req, res) {
@@ -82,8 +84,8 @@ app.get('/', wrap(function*(req, res) {
 
         return {
             deveui: eui,
-            title: eui + (devices[eui] ? ` (${devices[eui].localName || 'Unknown'})` : ''),
-            localName: devices[eui] ? devices[eui].localName : '',
+            title: eui + (devices[eui] ? ` (${ble.getLocalName(eui) || 'Unknown'})` : ''),
+            localName: ble.getLocalName(eui) || '',
             endpoint: sandbox.module.exports.security.mbed_endpoint_name,
             state: state,
             stateError: stateError,
@@ -127,24 +129,15 @@ app.get('/device/:deveui', wrap(function*(req, res, next) {
         return curr;
     }, {}) : null;
 
-    var gatt = (devices[eui] && devices[eui].model) ? Object.keys(devices[eui].model).reduce((curr, s) => {
-        var service = devices[eui].model[s];
-        curr[s] = Object.keys(service).reduce((curr, c) => {
-            if (service[c]) {
-                curr[c] = [].slice.call(service[c]);
-            }
-            return curr;
-        }, {});
-        return curr;
-    }, {}) : null;
+    var gatt = (ble.getDevice(req.params.deveui) || {}).model;
 
     // stringify gatt myself...
-    var gatt_str = stringifyGatt(gatt);
+    var gatt_str = gatt ? stringifyGatt(gatt) : JSON.stringify({});
 
     var model = {
         deveui: eui,
         endpoint: sandbox.module.exports.security.mbed_endpoint_name,
-        localName: (eui in devices) ? (devices[eui].localName || eui) : 'Unknown',
+        localName: ble.getLocalName(eui) || 'Unknown',
         state: (eui in devices) ? mapState(devices[eui].state) : 'Disconnected',
         stateError: (devices[eui] && devices[eui].stateError ? (' - ' + devices[eui].stateError) : ''),
         read: read,
@@ -204,7 +197,14 @@ app.get('/new-device', wrap(function*(req, res, next) {
 app.post('/new-device', wrap(function*(req, res, next) {
     // add the device in mbed Client Service
     try {
-        console.log('Creating new device in mbed-client-service');
+        console.log(CON_PREFIX, 'Creating new device in mbed-client-service');
+
+        console.log(CON_PREFIX, 'domain', req.body.connector_domain);
+        console.log(CON_PREFIX, 'access_key', req.body.connector_ak);
+        console.log(CON_PREFIX, 'type', 'test');
+        console.log(CON_PREFIX, 'resources', [
+                { path: '/example/0/rule', valueType: 'dynamic', operation: ['GET', 'PUT'], observable: true }
+            ]);
 
         var clientDevice = yield clientService.createConnectorDevice(req.body.connector_domain,
             req.body.connector_ak,
@@ -214,11 +214,11 @@ app.post('/new-device', wrap(function*(req, res, next) {
             ]);
     }
     catch (ex) {
-        console.error('Creating device in mbed-client-service failed', ex);
+        console.error(CON_PREFIX, 'Creating device in mbed-client-service failed', ex);
         throw 'Creating device in mbed-client-service failed, ' + ex.message;
     }
 
-    console.log('Created new device in mbed-client-service');
+    console.log(CON_PREFIX, 'Created new device in mbed-client-service');
 
     var file = JSON.stringify({
         type: 'create-device',
@@ -226,7 +226,7 @@ app.post('/new-device', wrap(function*(req, res, next) {
         security: {
             mbed_endpoint_name: clientDevice.id,
             mbed_domain: req.body.connector_domain,
-            accessKey: req.body.connector_ak,
+            access_key: req.body.connector_ak,
         },
         read: {
             "example/0/rule": "1PLACEHOLDER"
@@ -249,7 +249,7 @@ app.post('/new-device', wrap(function*(req, res, next) {
 
     yield promisify(fs.writeFile.bind(fs))(Path.join(__dirname, '../devices', req.body.eui + '.js'), file, 'utf-8');
 
-    createDevice(req.body.eui);
+    devices[req.body.eui] = yield deviceDb.loadDevice(req.body.eui);
 
     res.redirect('/device/' + req.body.eui + '?created');
 }));
@@ -274,18 +274,20 @@ io.on('connection', socket => {
         if (!devices[eui]) return;
 
         socket.emit('statechange', mapState(devices[eui].state), '');
-        socket.emit('modelchange', stringifyGatt(devices[eui].model));
+        socket.emit('modelchange', stringifyGatt((ble.getDevice(eui) || {}).model));
         socket.emit('lwm2mchange', JSON.stringify(devices[eui].lwm2m, null, 4));
 
         var sc, mc, lc;
 
-        devices[eui].ee.on('statechange', sc = function(state, error) {
+        devices[eui].on('statechange', sc = function(state, error) {
             socket.emit('statechange', mapState(state), error && error.toString());
         });
-        devices[eui].ee.on('modelchange', mc = function(model) {
+        devices[eui].on('ble-model-updated', mc = function(model) {
             socket.emit('modelchange', stringifyGatt(model));
         });
-        devices[eui].ee.on('lwm2mchange', lc = function(model) {
+
+        // @todo, lwm2mchange is no longer there...
+        devices[eui].on('lwm2mchange', lc = function(model) {
             socket.emit('lwm2mchange', JSON.stringify(model, null, 4));
         });
 
@@ -297,28 +299,28 @@ io.on('connection', socket => {
 
         socket.on('disconnect', () => {
             try {
-                devices[eui].ee.removeListener('statechange', sc);
-                devices[eui].ee.removeListener('modelchange', mc);
-                devices[eui].ee.removeListener('lwm2mchange', lc);
+                devices[eui].removeListener('statechange', sc);
+                devices[eui].removeListener('modelchange', mc);
+                devices[eui].removeListener('lwm2mchange', lc);
             } catch (ex) {}
         });
     });
 
     socket.on('subscribe-seen', function() {
         var s;
-        ee.on('seen', s = function(dev) {
+        ble.on('seen', s = function(dev) {
             socket.emit('seen', dev);
         });
         socket.on('disconnect', () => {
             try {
-                ee.removeListener(s);
+                ble.removeListener(s);
             } catch(ex) { /*whatever*/ }
         });
     });
 });
 
 server.listen(process.env.PORT || 3000, process.env.IP || '0.0.0.0', function () {
-    console.log('Web server listening on port %s!', process.env.PORT || 3000);
+    console.log(CON_PREFIX, 'Web server listening on port ' + (process.env.PORT || 3000) + '!');
 });
 
 };

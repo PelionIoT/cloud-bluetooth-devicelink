@@ -11,6 +11,7 @@ const startWebserver = require('./webserver/webserver.js');
 const EventEmitter = require('events');
 const chokidar = require('chokidar');
 const ClientService = require('../mbed-client-service-library-js');
+const BluetoothDevice = require('./bt-device');
 
 var logSeenDevices = process.argv.indexOf('--log-seen-devices') > -1;
 
