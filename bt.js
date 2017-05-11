@@ -42,6 +42,8 @@ const config = require(Path.join(__dirname, 'config', process.argv[2]));
             // if schema changed, the new schema is sent to mbed-client-service in `bleModelUpdated`...
         });
         deviceDb.on('remove', address => {
+            if (!devices[address]) return;
+
             ble.disconnectDevice(address);
 
             clientService.deleteDevice(devices[address].cloudDevice.id);

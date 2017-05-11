@@ -7,6 +7,7 @@ const Path = require('path');
 const fs = require('fs');
 const promisify = require('es6-promisify');
 const chokidar = require('chokidar');
+const verify = require('./verify-device');
 
 function DeviceDb(folder, clientService) {
     EventEmitter.call(this);
@@ -69,6 +70,13 @@ DeviceDb.prototype.loadDeviceDefinitionFile = async function (address) {
     let script = new vm.Script(definition);
     script.runInContext(context);
 
+    try {
+        verify(context.module.exports);
+    }
+    catch (err) {
+        context.module.exports.error = err;
+    }
+
     return context.module.exports;
 };
 
@@ -89,6 +97,26 @@ DeviceDb.prototype.loadAllDevices = async function() {
         curr[d.address] = d;
         return curr;
     }, {});
-}
+};
+
+DeviceDb.prototype.saveNewDevice = async function(address, data) {
+    await promisify(fs.writeFile.bind(fs))(Path.join(this.folder, address + '.js'), data, 'utf-8');
+
+    this.emit('add', address);
+};
+
+DeviceDb.prototype.saveDevice = async function(address, data) {
+    await promisify(fs.writeFile.bind(fs))(Path.join(this.folder, address + '.js'), data, 'utf-8');
+
+    let definition = await this.loadDeviceDefinitionFile(address);
+    this.emit('change', address, definition);
+};
+
+DeviceDb.prototype.deleteDevice = async function(address) {
+    await promisify(fs.unlink.bind(fs))(Path.join(this.folder, address + '.js'));
+
+    // trigger straight away, don't wait for the filesystem event to come through
+    this.emit('remove', address);
+};
 
 module.exports = DeviceDb;
