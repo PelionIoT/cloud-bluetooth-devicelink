@@ -17,6 +17,7 @@ function BtDeviceLinkDevice(address, cloudDefinition, cloudDevice) {
     this.state = 'disconnected';
     this.stateError = null;
 
+    // model contains the model that is currently synced with mbed-client-service
     this.model = [];
 
     // cloudDefinition contains security certs and read/write mappings
@@ -24,12 +25,37 @@ function BtDeviceLinkDevice(address, cloudDefinition, cloudDevice) {
 
     // cloudDevice is the device representation in mbed-client-service
     this.cloudDevice = cloudDevice;
-
     this.cloudDevice.on('put', this.onPut.bind(this));
 
     this.modelUpdateInProgress = false;
 
-    this.lastReceivedBleModel = {};
+    // bleModel contains the model that holds the BLE characteristics (and current value of chars)
+    this.bleModel = {};
+
+    // registered with mbed Cloud
+    this.registered = false;
+
+    // deregister and register whenever the device comes online/offline
+    this.on('statechange', ev => {
+        switch (ev) {
+            case 'connected':
+                console.log(CON_PREFIX, '[' + this.address + ']', 'Registering');
+                this.cloudDevice.register()
+                    .then(() => {
+                        this.registered = true;
+                        console.log(CON_PREFIX, '[' + this.address + ']', 'Registered');
+                    })
+                    .catch((err) => console.log(CON_PREFIX, '[' + this.address + ']', 'Registration failed', err));
+                break;
+            case 'disconnected':
+                console.log(CON_PREFIX, '[' + this.address + ']', 'Deregistering');
+                this.cloudDevice.deregister()
+                    .then(() => console.log(CON_PREFIX, '[' + this.address + ']', 'Deregistered'))
+                    .catch((err) => console.log(CON_PREFIX, '[' + this.address + ']', 'Deregistration failed', err))
+                    .then(() => this.registered = false);
+                break;
+        }
+    });
 }
 
 BtDeviceLinkDevice.prototype = Object.create(EventEmitter.prototype);
@@ -66,8 +92,7 @@ BtDeviceLinkDevice.prototype.generateLwm2mModel = function(model) {
         try {
             v = (readKeys.indexOf(k) > -1 ? definition.read[k](model) : '').toString();
         }
-        catch (ex) {
-        }
+        catch (ex) { /* no-op in case the JS is not valid */ }
 
         if (!v && (this.cloudDevice.resources['/' + k])) {
             v = this.cloudDevice.resources['/' + k].value;
@@ -107,7 +132,7 @@ BtDeviceLinkDevice.prototype.bleModelUpdated = function(model) {
     let curr = this.generateLwm2mModel(model);
     let old = this.model;
 
-    this.lastReceivedBleModel = model;
+    this.bleModel = model;
 
     (async function() {
         try {
@@ -134,27 +159,21 @@ BtDeviceLinkDevice.prototype.bleModelUpdated = function(model) {
             let currSchema = getSchema(curr);
             let oldSchema = getSchema(Object.keys(this.cloudDevice.resources).map(r => this.cloudDevice.resources[r]));
 
-            if (currSchema !== oldSchema) {
+            if (currSchema !== oldSchema && this.registered) {
                 // Schema change!
                 console.log(CON_PREFIX, '[' + this.address + ']', `Schema change to`, curr);
 
-                // @todo: re-enable when this is fixed...
+                console.log(CON_PREFIX, '[' + this.address + ']', 'setResourceModel');
+                await this.cloudDevice.setResourceModel(curr);
+                console.log(CON_PREFIX, '[' + this.address + ']', 'OK setResourceModel');
 
-                // console.log(CON_PREFIX, '[' + this.address + ']', 'Deregister');
-                // await this.cloudDevice.deregister();
-                // console.log(CON_PREFIX, '[' + this.address + ']', 'OK Deregister');
+                console.log(CON_PREFIX, '[' + this.address + ']', 'Deregister');
+                await this.cloudDevice.deregister();
+                console.log(CON_PREFIX, '[' + this.address + ']', 'OK Deregister');
 
-                // console.log(CON_PREFIX, '[' + this.address + ']', 'setResourceModel');
-                // await this.cloudDevice.setResourceModel(curr);
-                // console.log(CON_PREFIX, '[' + this.address + ']', 'OK setResourceModel');
-
-                // console.log(CON_PREFIX, '[' + this.address + ']', 'Register');
-                // await this.cloudDevice.register();
-                // console.log(CON_PREFIX, '[' + this.address + ']', 'OK Register');
-
-                console.log(CON_PREFIX, '[' + this.address + ']', 'fake setResources');
-                await this.cloudDevice.$setResources(curr);
-                console.log(CON_PREFIX, '[' + this.address + ']', 'OK fake setResources');
+                console.log(CON_PREFIX, '[' + this.address + ']', 'Register');
+                await this.cloudDevice.register();
+                console.log(CON_PREFIX, '[' + this.address + ']', 'OK Register');
 
                 this.modelUpdateInProgress = false;
                 return;
@@ -172,7 +191,7 @@ BtDeviceLinkDevice.prototype.bleModelUpdated = function(model) {
                     oldValue = oldRule.value;
                 }
 
-                if (rule.value !== oldValue) {
+                if (rule.value !== oldValue && this.registered) {
                     console.log(CON_PREFIX, '[' + this.address + ']', `Update value for`, rule.path, 'to', rule.value);
                     await this.cloudDevice.resources[rule.path].setValue(rule.value);
                     console.log(CON_PREFIX, '[' + this.address + ']', `OK Update value for`, rule.path, 'to', rule.value);
@@ -203,16 +222,25 @@ BtDeviceLinkDevice.prototype.onPut = function(path, value) {
     console.log(CON_PREFIX, '[' + this.address + ']', `Write from mbed Cloud for ${path}, value ${value}`);
 
     function write(path, aData) {
-        console.log(CON_PREFIX, '[' + self.address + ']', `Writing to BLE char ${path}, value ${aData}`);
+        if (!(aData instanceof Array)) aData = [ aData ];
+
+        console.log(CON_PREFIX, '[' + self.address + ']', `Writing to BLE char ${path}, value`, '[ ' + aData.join(', ') + ' ]');
         var s = path.split('/');
         let service = s[0], char = s[1];
 
-        if (self.model[service] && self.model[service][char]) {
-            self.model[service][char].char.write(new Buffer(aData));
+        if (self.bleModel[service] && self.bleModel[service][char]) {
+            self.bleModel[service][char].char.write(new Buffer(aData));
+        }
+        else {
+            console.log(CON_PREFIX, '[' + self.address + ']', `Could not find characteristic for this ID`);
         }
     }
 
     this.cloudDefinition.write[path.substr(1)](value, write);
+};
+
+BtDeviceLinkDevice.prototype.localNameChanged = function(localName) {
+    this.emit('localnamechange', localName);
 };
 
 module.exports = BtDeviceLinkDevice;

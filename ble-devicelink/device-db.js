@@ -13,7 +13,7 @@ function DeviceDb(clientService) {
 
     this.clientService = clientService;
 
-    let watcher = this.watcher = chokidar.watch(Path.join(__dirname, 'devices'), {
+    let watcher = this.watcher = chokidar.watch(Path.join(__dirname, '..', 'devices'), {
         recursive: false,
         ignoreInitial: true,
     });
@@ -24,11 +24,7 @@ function DeviceDb(clientService) {
 
             console.log(CON_PREFIX, 'Add', path);
 
-            (async function() {
-                let device = await this.loadDevice(this.getAddressFromPath(path));
-
-                this.emit('add', device);
-            }).call(this)
+            this.emit('add', this.getAddressFromPath(path));
         })
         .on('change', path => {
             if (!this.isAddressPath(path)) return;
@@ -65,7 +61,7 @@ DeviceDb.prototype.isAddressPath = function (path) {
 DeviceDb.prototype.loadDeviceDefinitionFile = async function (address) {
     if (/\.js$/.test(address)) address = this.getAddressFromPath(address);
 
-    let definition = await promisify(fs.readFile.bind(fs))(Path.join(__dirname, 'devices', address + '.js'), 'utf-8');
+    let definition = await promisify(fs.readFile.bind(fs))(Path.join(__dirname, '..', 'devices', address + '.js'), 'utf-8');
 
     let sandbox = { module: {} };
     let context = new vm.createContext(sandbox);
@@ -83,7 +79,7 @@ DeviceDb.prototype.loadDevice = async function (address) {
 };
 
 DeviceDb.prototype.loadAllDevices = async function() {
-    let devices = await Promise.all(fs.readdirSync(Path.join(__dirname, 'devices'))
+    let devices = await Promise.all(fs.readdirSync(Path.join(__dirname, '..', 'devices'))
         .filter(f => /\.js$/.test(f))
         .map(f => Path.basename(f, '.js'))
         .map(f => this.loadDevice(f)));

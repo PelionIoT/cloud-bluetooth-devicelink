@@ -2,16 +2,16 @@
 
 const CON_PREFIX = '\x1b[35m[BTDevicelink]\x1b[0m';
 
-const BLE = require('./ble');
+const BLE = require('./ble-devicelink/./ble');
 const ClientService = require('../mbed-client-service-library-js');
-const DeviceDb = require('./device-db');
+const DeviceDb = require('./ble-devicelink/device-db');
 const startWebserver = require('./webserver/webserver');
 
 // During startup, first read the content of the /devices folder and see which devices are already there...
 (async function startup() {
     try {
         // mbed Client Service reference, and add a device database
-        let clientService = new ClientService('http://apm-lora-eu2.cloudapp.net:3030');
+        let clientService = new ClientService('http://192.168.23.143:3030/');
         let deviceDb = new DeviceDb(clientService);
 
         // load devices from disk
@@ -24,29 +24,33 @@ const startWebserver = require('./webserver/webserver');
         ble.startScanning();
 
         // events from the db
-        deviceDb.on('add', device => {
-            if (devices[device.address]) return;
+        deviceDb.on('add', address => {
+            if (devices[address]) return;
 
-            devices[device.address] = device;
-
-            // @todo: register in mbed Cloud
+            deviceDb.loadDevice(address).then(device => {
+                devices[address] = device;
+            }).catch(err => console.error(CON_PREFIX, 'Error loading device', address, err));
         });
         deviceDb.on('change', (address, definition) => {
             let device = devices[address];
 
             device.cloudDefinition = definition;
-            device.bleModelUpdated(device.lastReceivedBleModel);
+            device.bleModelUpdated(device.bleModel);
+
+            // if schema changed, the new schema is sent to mbed-client-service in `bleModelUpdated`...
         });
         deviceDb.on('remove', address => {
             ble.disconnectDevice(address);
 
-            // @todo: also deregister in mbed Cloud...
+            clientService.deleteDevice(devices[address].cloudDevice.id);
 
             delete devices[address];
         });
 
         // Start the webserver
         startWebserver(devices, ble, deviceDb, clientService);
+
+        // @todo: unregister devices when the process is killed
     }
     catch (ex) {
         console.error(CON_PREFIX, 'Startup failed', ex);

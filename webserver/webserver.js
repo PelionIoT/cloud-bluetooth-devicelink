@@ -8,7 +8,7 @@ var promisify = require('es6-promisify');
 var fs = require('fs');
 var Path = require('path');
 var vm = require('vm');
-var verify = require('../verify-device.js');
+var verify = require('./verify-device');
 var app = require('express')();
 var server = require('http').Server(app);
 var io = require('socket.io')(server);
@@ -199,18 +199,11 @@ app.post('/new-device', wrap(function*(req, res, next) {
     try {
         console.log(CON_PREFIX, 'Creating new device in mbed-client-service');
 
-        console.log(CON_PREFIX, 'domain', req.body.connector_domain);
-        console.log(CON_PREFIX, 'access_key', req.body.connector_ak);
-        console.log(CON_PREFIX, 'type', 'test');
-        console.log(CON_PREFIX, 'resources', [
-                { path: '/example/0/rule', valueType: 'dynamic', operation: ['GET', 'PUT'], observable: true }
-            ]);
-
         var clientDevice = yield clientService.createConnectorDevice(req.body.connector_domain,
             req.body.connector_ak,
             'test',
             [
-                { path: '/example/0/rule', valueType: 'dynamic', operation: ['GET', 'PUT'], observable: true }
+                { path: '/example/0/rule', value: 'Hello world', valueType: 'dynamic', operation: ['GET', 'PUT'], observable: true }
             ]);
     }
     catch (ex) {
@@ -277,13 +270,16 @@ io.on('connection', socket => {
         socket.emit('modelchange', stringifyGatt((ble.getDevice(eui) || {}).model));
         socket.emit('lwm2mchange', JSON.stringify(devices[eui].lwm2m, null, 4));
 
-        var sc, mc, lc;
+        var sc, mc, lc, ln;
 
         devices[eui].on('statechange', sc = function(state, error) {
             socket.emit('statechange', mapState(state), error && error.toString());
         });
         devices[eui].on('ble-model-updated', mc = function(model) {
             socket.emit('modelchange', stringifyGatt(model));
+        });
+        devices[eui].on('localnamechange', ln = function(name) {
+            socket.emit('localnamechange', name);
         });
 
         // @todo, lwm2mchange is no longer there...
@@ -300,8 +296,9 @@ io.on('connection', socket => {
         socket.on('disconnect', () => {
             try {
                 devices[eui].removeListener('statechange', sc);
-                devices[eui].removeListener('modelchange', mc);
+                devices[eui].removeListener('ble-model-updated', mc);
                 devices[eui].removeListener('lwm2mchange', lc);
+                devices[eui].removeListener('localnamechange', ln);
             } catch (ex) {}
         });
     });

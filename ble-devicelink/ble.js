@@ -76,6 +76,7 @@ BLE.prototype.connect = function (device, peripheral, localName) {
 
     // update the state of the device
     device.updateState('connecting');
+    device.localNameChanged(localName);
 
     let bleDevice = device.bleDevice = new BLEDevice(peripheral, localName);
 
