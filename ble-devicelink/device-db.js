@@ -8,12 +8,13 @@ const fs = require('fs');
 const promisify = require('es6-promisify');
 const chokidar = require('chokidar');
 
-function DeviceDb(clientService) {
+function DeviceDb(folder, clientService) {
     EventEmitter.call(this);
 
+    this.folder = folder;
     this.clientService = clientService;
 
-    let watcher = this.watcher = chokidar.watch(Path.join(__dirname, '..', 'devices'), {
+    let watcher = this.watcher = chokidar.watch(Path.join(this.folder), {
         recursive: false,
         ignoreInitial: true,
     });
@@ -61,7 +62,7 @@ DeviceDb.prototype.isAddressPath = function (path) {
 DeviceDb.prototype.loadDeviceDefinitionFile = async function (address) {
     if (/\.js$/.test(address)) address = this.getAddressFromPath(address);
 
-    let definition = await promisify(fs.readFile.bind(fs))(Path.join(__dirname, '..', 'devices', address + '.js'), 'utf-8');
+    let definition = await promisify(fs.readFile.bind(fs))(Path.join(this.folder, address + '.js'), 'utf-8');
 
     let sandbox = { module: {} };
     let context = new vm.createContext(sandbox);
@@ -79,7 +80,7 @@ DeviceDb.prototype.loadDevice = async function (address) {
 };
 
 DeviceDb.prototype.loadAllDevices = async function() {
-    let devices = await Promise.all(fs.readdirSync(Path.join(__dirname, '..', 'devices'))
+    let devices = await Promise.all(fs.readdirSync(Path.join(this.folder))
         .filter(f => /\.js$/.test(f))
         .map(f => Path.basename(f, '.js'))
         .map(f => this.loadDevice(f)));

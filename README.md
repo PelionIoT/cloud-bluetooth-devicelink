@@ -4,7 +4,7 @@ This is an *experimental* way to connect Bluetooth Low Energy devices into mbed 
 
 ## Setup
 
-1. Install [mbed Cloud Linux Devicelink](https://github.com/armmbed/cloud-linux-devicelink).
+1. Install [mbed Cloud Linux Devicelink](https://github.com/armmbed/mbed-client-service).
     * You can run mbed Cloud Linux Devicelink in an Ubuntu VM and this application on your main OS.
 2. Install [node.js 6+](https://nodejs.org/en/).
 
@@ -13,23 +13,24 @@ Then, on Ubuntu/Debian:
 ```bash
 $ sudo apt-get install libudev-dev
 $ npm install
-$ node bt.js
+$ node bt.js local
 ```
 
 On macOS:
 
 ```bash
 $ npm install
-$ node bt.js
+$ node bt.js local
 ```
 
-mbed CloudBluetooth Devicelink opens a webserver on `localhost:3000` and a TCP socket on `localhost:1337`. Start mbed Cloud Linux Devicelink and connect it to the TCP socket to bridge the devices into mbed Device Connector.
+mbed Cloud Bluetooth Devicelink opens a webserver on `localhost:3000` and connects to the mbed Cloud Devicelink service on `localhost:3030`.
 
 Now navigate to the web interface at http://localhost:3000 and add your device.
 
 ### Options
 
 * `--log-seen-devices` - logs all devices seen, useful for debugging.
+* `--client-service [url]` - sets the path to the mbed Cloud Devicelink service.
 
 ## Mapping from BLE to LWM2M
 
