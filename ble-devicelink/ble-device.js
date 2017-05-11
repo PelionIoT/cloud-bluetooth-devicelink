@@ -108,7 +108,7 @@ BLEDevice.prototype.onDisconnect = function() {
 
     this.peripheral.removeListener('disconnect', this.onDisconnectCallback);
 
-    this.emit('state-change', 'disconnect');
+    this.emit('state-change', 'disconnected');
 };
 
 BLEDevice.prototype.disconnect = function() {

@@ -46,6 +46,7 @@ function mapState(state) {
 function stringifyGatt(gatt) {
     return gatt ? '{\n' + Object.keys(gatt).map(sk => {
         return `    "${sk}": {\n` + Object.keys(gatt[sk]).map(ck => {
+            if (!gatt[sk][ck]) return undefined;
             return `        "${ck}": [ ${gatt[sk][ck].value.join(', ')} ]`;
         }).join(',\n') + '\n    }';
     }).join(',\n') + '\n}' : '{}';

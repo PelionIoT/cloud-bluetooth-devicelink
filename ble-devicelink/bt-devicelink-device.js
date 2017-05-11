@@ -57,6 +57,8 @@ function BtDeviceLinkDevice(address, cloudDefinition, cloudDevice) {
     this.on('statechange', ev => {
         switch (ev) {
             case 'connected':
+                if (this.registered) return;
+
                 console.log(CON_PREFIX, '[' + this.address + ']', 'Registering');
                 this.cloudDevice.register()
                     .then(() => {
@@ -66,6 +68,8 @@ function BtDeviceLinkDevice(address, cloudDefinition, cloudDevice) {
                     .catch((err) => console.log(CON_PREFIX, '[' + this.address + ']', 'Registration failed', err));
                 break;
             case 'disconnected':
+                if (!this.registered) return;
+
                 console.log(CON_PREFIX, '[' + this.address + ']', 'Deregistering');
                 this.cloudDevice.deregister()
                     .then(() => console.log(CON_PREFIX, '[' + this.address + ']', 'Deregistered'))
