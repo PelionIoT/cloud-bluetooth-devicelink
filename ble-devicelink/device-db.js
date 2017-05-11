@@ -100,6 +100,7 @@ DeviceDb.prototype.loadAllDevices = async function() {
 };
 
 DeviceDb.prototype.saveNewDevice = async function(address, data) {
+    // @todo: this stuff can potentially trigger a race condition when the filesystem trigger goes off before device creation succeeded...
     await promisify(fs.writeFile.bind(fs))(Path.join(this.folder, address + '.js'), data, 'utf-8');
 
     this.emit('add', address);
@@ -113,6 +114,7 @@ DeviceDb.prototype.saveDevice = async function(address, data) {
 };
 
 DeviceDb.prototype.deleteDevice = async function(address) {
+    // @todo: similar as above, potential race condition material...
     await promisify(fs.unlink.bind(fs))(Path.join(this.folder, address + '.js'));
 
     // trigger straight away, don't wait for the filesystem event to come through
