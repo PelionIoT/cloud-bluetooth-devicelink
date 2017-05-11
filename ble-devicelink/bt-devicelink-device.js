@@ -35,6 +35,24 @@ function BtDeviceLinkDevice(address, cloudDefinition, cloudDevice) {
     // registered with mbed Cloud
     this.registered = false;
 
+    // check registration status
+    (async function() {
+        try {
+            let status = await this.cloudDevice.getRegistrationStatus();
+            console.log(CON_PREFIX, '[' + this.address + ']', 'Registration status is', status);
+
+            // when we create this object and its registered, we want to deregister...
+            if (status === true) {
+                console.log(CON_PREFIX, '[' + this.address + ']', 'Deregistering');
+                await this.cloudDevice.deregister();
+                console.log(CON_PREFIX, '[' + this.address + ']', 'Deregistering OK');
+            }
+        }
+        catch (ex) {
+            console.log(CON_PREFIX, '[' + this.address + ']', 'Retrieving registration status failed', ex);
+        }
+    }).call(this);
+
     // deregister and register whenever the device comes online/offline
     this.on('statechange', ev => {
         switch (ev) {
