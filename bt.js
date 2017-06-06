@@ -106,7 +106,7 @@ noble.on('discover', co.wrap(function*(peripheral) {
     // sometimes with a new device we don't know the address...
     // after connecting once however we know it next time.
     // so dirty hack.
-    if (ad.localName && peripheral.address === 'unknown' && !connectedOnce[ad.localName]) {
+    if (ad.localName && peripheral.address === 'unknown'/* && !connectedOnce[ad.localName]*/) {
       // don't do this for now, seems macOS only...
 
       return;
@@ -128,18 +128,18 @@ noble.on('discover', co.wrap(function*(peripheral) {
     if (peripheral.address === 'unknown') return;
 
     // delete it here again so we can connect to multiple devices with the same name.
-    delete connectedOnce[ad.localName];
+    // delete connectedOnce[ad.localName];
 
     if (!devices[peripheral.address]) {
       var address = peripheral.address;
-      seen[address || ad.localName] = {
+      seen[address] = {
         lastSeen: new Date(),
         name: ad.localName || address,
         eui: address,
         rssi: peripheral.rssi,
         services: ad.serviceUuids
       };
-      ee.emit('seen', seen[address || ad.localName]);
+      ee.emit('seen', seen[address]);
     }
 
     // so on slow computers like Rpi, it happens that the call to loadDeviceDefinition takes too long
