@@ -267,7 +267,8 @@ var connect = co.wrap(function*(p, definition, localName) {
 
             let changed = Object.keys(new_lwm2m).filter(k => {
               if (!devices[p.address].lwm2m[k]) return true;
-              return new_lwm2m[k].defaultValue !== devices[p.address].lwm2m[k].defaultValue;
+              return new_lwm2m[k].defaultValue !== devices[p.address].lwm2m[k].defaultValue
+                && new_lwm2m[k].defaultValue !== '-999999'; // magic value
             }).reduce((curr, k) => {
               curr[k] = new_lwm2m[k].defaultValue;
               return curr;
