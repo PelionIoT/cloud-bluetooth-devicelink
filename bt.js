@@ -12,6 +12,7 @@ const EventEmitter = require('events');
 const chokidar = require('chokidar');
 
 var logSeenDevices = process.argv.indexOf('--log-seen-devices') > -1;
+var macOsFix = process.argv.indexOf('--mac-os-fix') > -1;
 
 var devices = {};
 var seen = {};
@@ -108,8 +109,10 @@ noble.on('discover', co.wrap(function*(peripheral) {
     // so dirty hack.
     if (ad.localName && peripheral.address === 'unknown'/* && !connectedOnce[ad.localName]*/) {
       // don't do this for now, seems macOS only...
+      if (!macOsFix) {
+        return;
+      }
 
-      return;
       connectedOnce[ad.localName] = true;
 
       // // connect and disconnect straight away. that should help.
