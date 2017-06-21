@@ -60,10 +60,11 @@ function BtDeviceLinkDevice(address, cloudDefinition, cloudDevice) {
                 if (this.registered) return;
 
                 console.log(CON_PREFIX, '[' + this.address + ']', 'Registering');
-                this.cloudDevice.register()
+                this.cloudDevice.register(this.model)
                     .then(() => {
                         this.registered = true;
-                        console.log(CON_PREFIX, '[' + this.address + ']', 'Registered');
+                        this.emit('endpointchange', this.cloudDevice.endpoint);
+                        console.log(CON_PREFIX, '[' + this.address + ']', 'Registered', this.cloudDevice.endpoint);
                     })
                     .catch((err) => console.log(CON_PREFIX, '[' + this.address + ']', 'Registration failed', err));
                 break;
@@ -74,7 +75,10 @@ function BtDeviceLinkDevice(address, cloudDefinition, cloudDevice) {
                 this.cloudDevice.deregister()
                     .then(() => console.log(CON_PREFIX, '[' + this.address + ']', 'Deregistered'))
                     .catch((err) => console.log(CON_PREFIX, '[' + this.address + ']', 'Deregistration failed', err))
-                    .then(() => this.registered = false);
+                    .then(() => {
+                        this.registered = false;
+                        this.emit('endpointchange', this.cloudDevice.endpoint);
+                    });
                 break;
         }
     });
@@ -174,6 +178,7 @@ BtDeviceLinkDevice.prototype.bleModelUpdated = function(model) {
                 return JSON.stringify(model.map(rule => {
                     rule = Object.assign({}, rule);
                     delete rule.value;
+                    delete rule.rpcType;
                     return rule;
                 }));
             }
@@ -185,16 +190,12 @@ BtDeviceLinkDevice.prototype.bleModelUpdated = function(model) {
                 // Schema change!
                 console.log(CON_PREFIX, '[' + this.address + ']', `Schema change to`, curr);
 
-                console.log(CON_PREFIX, '[' + this.address + ']', 'setResourceModel');
-                await this.cloudDevice.setResourceModel(curr);
-                console.log(CON_PREFIX, '[' + this.address + ']', 'OK setResourceModel');
-
                 console.log(CON_PREFIX, '[' + this.address + ']', 'Deregister');
                 await this.cloudDevice.deregister();
                 console.log(CON_PREFIX, '[' + this.address + ']', 'OK Deregister');
 
                 console.log(CON_PREFIX, '[' + this.address + ']', 'Register');
-                await this.cloudDevice.register();
+                await this.cloudDevice.register(curr);
                 console.log(CON_PREFIX, '[' + this.address + ']', 'OK Register');
 
                 this.modelUpdateInProgress = false;
@@ -244,14 +245,14 @@ BtDeviceLinkDevice.prototype.onPut = function(path, value) {
     console.log(CON_PREFIX, '[' + this.address + ']', `Write from mbed Cloud for ${path}, value ${value}`);
 
     function write(path, aData) {
-        if (!(aData instanceof Array)) aData = [ aData ];
+        if (!Array.isArray(aData)) aData = [ aData ];
 
         console.log(CON_PREFIX, '[' + self.address + ']', `Writing to BLE char ${path}, value`, '[ ' + aData.join(', ') + ' ]');
         var s = path.split('/');
         let service = s[0], char = s[1];
 
         if (self.bleModel[service] && self.bleModel[service][char]) {
-            self.bleModel[service][char].char.write(new Buffer(aData));
+            self.bleModel[service][char].char.write(Buffer.from(aData));
         }
         else {
             console.log(CON_PREFIX, '[' + self.address + ']', `Could not find characteristic for this ID`);

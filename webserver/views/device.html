@@ -139,8 +139,8 @@
     </div>
     {{/if}}
 
-    <p><span class="eui">Connector endpoint</span> <span class="euiv">{{endpoint}}</span></p>
-    <p><span class="eui">Connector type</span> <span class="euiv"><input name="mbed_type" placeholder="Enter device type" value="{{mbed_type}}"></span></p>
+    <p><span class="eui">Cloud endpoint</span> <span class="euiv" id="endpoint">{{endpoint}}</span></p>
+    <p><span class="eui">Cloud type</span> <span class="euiv"><input name="mbed_type" placeholder="Enter device type" value="{{mbed_type}}"></span></p>
     <p><span class="eui">Bluetooth</span> <span class="euiv"><span id="localname">{{localName}}</span> - <span id="state">{{state}}</span><span id="stateError">{{stateError}}</span></span></span></p>
 
     <div id="autoconfig" class="show-on-unconfigured hide-on-unconnected">
@@ -309,6 +309,10 @@
     });
     socket.on('localnamechange', function(name) {
       document.querySelector('#localname').textContent = name;
+    });
+    socket.on('endpointchange', function(endpoint) {
+      document.querySelector('#endpoint').textContent = endpoint;
+      document.title = 'Change configuration - ' + endpoint;
     });
 
     function stateChange(state) {

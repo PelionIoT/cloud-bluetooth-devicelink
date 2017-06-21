@@ -3,7 +3,7 @@ const noble = require('noble');
 const BLEDevice = require('./ble-device');
 const CON_PREFIX = '\x1b[36m[BLE]\x1b[0m';
 
-function BLE(devices, logSeenDevices) {
+function BLE(devices, logSeenDevices, macOsFix) {
     EventEmitter.call(this);
 
     this.devices = devices;
@@ -11,6 +11,7 @@ function BLE(devices, logSeenDevices) {
 
     this.seen = {};
     this.bleDevices = {};
+    this.macOsFix = macOsFix;
 
     noble.on('discover', this.onDiscover.bind(this));
 }
@@ -52,7 +53,22 @@ BLE.prototype.onDiscover = function (peripheral) {
     }
 
     if (!peripheral.connectable) return;
-    if (address === 'unknown') return;
+    if (address === 'unknown') {
+        if (!this.macOsFix) return;
+
+        // macOS has a problem where unknown devices that have never been connected to have 'unknown' address
+        // by connecting once we can get around this problem...
+        // // connect and disconnect straight away. that should help.
+        console.log(CON_PREFIX, `[${ad.localName}] connecting to find out address...`);
+        let pto = setTimeout(() => {
+            console.log(CON_PREFIX, `[${ad.localName}] failed to connect`);
+            peripheral.disconnect();
+        }, 10000);
+        peripheral.connect(function(err, bla) {
+            clearTimeout(pto);
+            peripheral.disconnect(function() {});
+        });
+    }
 
     // update the 'seen' database (if the device is not in the devices database yet...)
     if (!devices[address]) {

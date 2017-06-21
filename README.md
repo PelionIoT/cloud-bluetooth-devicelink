@@ -16,16 +16,20 @@ $ npm install
 $ node bt.js local
 ```
 
-On macOS:
+On macOS, use the SSH configuration:
 
 ```bash
 $ npm install
-$ node bt.js local
+
+# first, enable SSH to your VM and add your public key to ~/.ssh/authorized_keys
+$ node bt.js over-ssh --rpc-host 192.168.23.146 --rpc-username janjon01 --rpc-private-key ~/.ssh/id_rsa --rpc-binary /full/path/on/mbedCloudClientExample.elf
 ```
 
-mbed Cloud Bluetooth Devicelink opens a webserver on `localhost:3000` and connects to the mbed Cloud Devicelink service on `localhost:3030`.
+mbed Cloud Bluetooth Devicelink opens a webserver on `localhost:3000` and spawns up instances of mbed Cloud Linux Devicelink on port 9300 and up.
 
 Now navigate to the web interface at http://localhost:3000 and add your device.
+
+**Note on macOS:** If you don't see any devices, and `--log-seen-devices` yields your device with an 'unknown' MAC address; start the process with `--mac-os-fix` *once*, then start the process normally.
 
 ### Options
 

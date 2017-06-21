@@ -82,7 +82,10 @@ DeviceDb.prototype.loadDeviceDefinitionFile = async function (address) {
 
 DeviceDb.prototype.loadDevice = async function (address) {
     let definition = await this.loadDeviceDefinitionFile(address);
-    let cloudDevice = await this.clientService.getDevice(definition.security.mbed_endpoint_name);
+    let cloudDevice = await this.clientService.getDevice(
+        definition.security.mbed_endpoint_name,
+        definition.security.mbed_type
+    );
 
     return new BtDevicelinkDevice(address, definition, cloudDevice);
 };

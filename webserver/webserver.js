@@ -44,7 +44,7 @@ function mapState(state) {
 function stringifyGatt(gatt) {
     return gatt ? '{\n' + Object.keys(gatt).map(sk => {
         return `    "${sk}": {\n` + Object.keys(gatt[sk]).map(ck => {
-            if (!gatt[sk][ck]) return undefined;
+            if (!gatt[sk][ck] || !gatt[sk][ck].value) return undefined;
             return `        "${ck}": [ ${gatt[sk][ck].value.join(', ')} ]`;
         }).join(',\n') + '\n    }';
     }).join(',\n') + '\n}' : '{}';
@@ -61,7 +61,7 @@ app.get('/', wrap(function*(req, res) {
             deveui: d.address,
             title: d.address + ` (${ble.getLocalName(d.address) || 'Unknown'})`,
             localName: ble.getLocalName(d.address) || '',
-            endpoint: d.cloudDefinition.security.mbed_endpoint_name,
+            endpoint: clientService.getEndpointForId(d.id) || d.address,
             state: state,
             stateError: stateError,
             notConnected: d.state !== 'connected',
@@ -98,7 +98,7 @@ app.get('/device/:deveui', wrap(function*(req, res, next) {
 
     var model = {
         deveui: address,
-        endpoint: device.cloudDefinition.security.mbed_endpoint_name,
+        endpoint: clientService.getEndpointForId(device.id) || 'Not registered',
         localName: ble.getLocalName(address) || 'Unknown',
         state: mapState(device.state),
         stateError: device.stateError ? (' - ' + device.stateError) : '',
@@ -152,15 +152,9 @@ app.get('/new-device', wrap(function*(req, res, next) {
 
 app.post('/new-device', wrap(function*(req, res, next) {
     // add the device in mbed Client Service
+    let clientDevice;
     try {
-        console.log(CON_PREFIX, 'Creating new device in mbed-client-service');
-
-        var clientDevice = yield clientService.createConnectorDevice(req.body.connector_domain,
-            req.body.connector_ak,
-            'test',
-            [
-                { path: '/example/0/rule', value: 'Hello world', valueType: 'dynamic', operation: ['GET', 'PUT'], observable: true }
-            ]);
+        clientDevice = yield clientService.createCloudDevice(req.body.eui, 'test');
     }
     catch (ex) {
         console.error(CON_PREFIX, 'Creating device in mbed-client-service failed', ex);
@@ -226,7 +220,7 @@ io.on('connection', socket => {
         socket.emit('modelchange', stringifyGatt((ble.getDevice(eui) || {}).model));
         socket.emit('lwm2mchange', JSON.stringify(devices[eui].lwm2m, null, 4));
 
-        var sc, mc, lc, ln;
+        var sc, mc, lc, ln, en;
 
         devices[eui].on('statechange', sc = function(state, error) {
             socket.emit('statechange', mapState(state), error && error.toString());
@@ -236,6 +230,9 @@ io.on('connection', socket => {
         });
         devices[eui].on('localnamechange', ln = function(name) {
             socket.emit('localnamechange', name);
+        });
+        devices[eui].on('endpointchange', en = function(endpoint) {
+            socket.emit('endpointchange', endpoint);
         });
 
         // @todo, lwm2mchange is no longer there...
@@ -255,6 +252,7 @@ io.on('connection', socket => {
                 devices[eui].removeListener('ble-model-updated', mc);
                 devices[eui].removeListener('lwm2mchange', lc);
                 devices[eui].removeListener('localnamechange', ln);
+                devices[eui].removeListener('endpointchange', en);
             } catch (ex) {}
         });
     });
