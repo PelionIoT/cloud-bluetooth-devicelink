@@ -92,6 +92,18 @@ Defines what should happen when a resource was updated in mbed Device Connector,
 }
 ```
 
+## Firmware updates
+
+mbed Cloud Bluetooth Devicelink can also handle firmware updates for BLE devices. It does this by intercepting an update that comes in from mbed Cloud, verifying that it was signed by a trusted party, and then hand it off to the native firmware update method. This requires you to sign the update using the manifest-tool, and provision the public key used for this update into Devicelink.
+
+Methods supported are:
+
+* Nordic legacy DFU.
+
+The implementations are pluggable in `ble-devicelink/firmware-updates.js`.
+
+An example firmware (with bootloader), an OTA image, and a pre-signed manifest are already available for the nRF52-DK. See the `firmware/` folder. Flash the `_BOOT` image to your nRF52-DK, provision the device in Devicelink and upload the manifest to mbed Cloud. Then start an update campaign from mbed Cloud to update the device. You can also re-sign new firmware with the certificates provided in this folder.
+
 ## TODO
 
 * Passcode screens are handled by the host OS, not by Devicelink itself. This is annoying when you're using a headless computer like a Raspberry Pi. Need to log into the machine to add authenticated devices.
