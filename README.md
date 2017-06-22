@@ -1,14 +1,14 @@
 # mbed Cloud Bluetooth Devicelink
 
-This is an *experimental* way to connect Bluetooth Low Energy devices into mbed Device Connector and mbed Cloud.
+This is an *experimental* way to connect Bluetooth Low Energy devices into mbed Cloud.
 
 ## Setup
 
-1. Install [mbed Cloud Linux Devicelink](https://github.com/armmbed/mbed-client-service).
+1. Install [mbed Cloud Linux Devicelink 2.0](https://github.com/janjongboom/mbed-cloud-client-example-restricted/tree/RR1.2.1-EA-fake-fota).
     * You can run mbed Cloud Linux Devicelink in an Ubuntu VM and this application on your main OS.
 2. Install [node.js 6+](https://nodejs.org/en/).
 
-Then, on Ubuntu/Debian:
+### On Ubuntu / Debian
 
 ```bash
 $ sudo apt-get install libudev-dev
@@ -16,12 +16,16 @@ $ npm install
 $ node bt.js local
 ```
 
-On macOS, use the SSH configuration:
+### macOS
+
+Install mbed Cloud Linux Devicelink in a virtual machine. Then enable SSH access into your VM, and add your public key to `~/.ssh/authorized_keys`. mbed Cloud Bluetooth Devicelink will spawn up clients on demand through an SSH tunnel.
+
+Then on your machine:
 
 ```bash
 $ npm install
 
-# first, enable SSH to your VM and add your public key to ~/.ssh/authorized_keys
+# replace these parameters with the ones for your VM
 $ node bt.js over-ssh --rpc-host 192.168.23.146 --rpc-username janjon01 --rpc-private-key ~/.ssh/id_rsa --rpc-binary /full/path/on/mbedCloudClientExample.elf
 ```
 
@@ -90,5 +94,4 @@ Defines what should happen when a resource was updated in mbed Device Connector,
 
 ## TODO
 
-* Can only connect to unprotected devices (no security features).
-* [status-change](https://github.com/armmbed/cloud-linux-devicelink#status-in-connector-changed) events are not handled.
+* Passcode screens are handled by the host OS, not by Devicelink itself. This is annoying when you're using a headless computer like a Raspberry Pi. Need to log into the machine to add authenticated devices.

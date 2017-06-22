@@ -1,4 +1,5 @@
 const EventEmitter = require('events');
+const fota = require('./firmware-updates');
 const CON_PREFIX = '\x1b[35m[BTDevicelink]\x1b[0m';
 
 /**
@@ -26,6 +27,7 @@ function BtDeviceLinkDevice(address, cloudDefinition, cloudDevice) {
     // cloudDevice is the device representation in mbed-client-service
     this.cloudDevice = cloudDevice;
     this.cloudDevice.on('put', this.onPut.bind(this));
+    this.cloudDevice.on('fota', this.onFota.bind(this));
 
     this.modelUpdateInProgress = false;
 
@@ -60,7 +62,7 @@ function BtDeviceLinkDevice(address, cloudDefinition, cloudDevice) {
                 if (this.registered) return;
 
                 console.log(CON_PREFIX, '[' + this.address + ']', 'Registering');
-                this.cloudDevice.register(this.model)
+                this.cloudDevice.register(this.model, this.supportsUpdate)
                     .then(() => {
                         this.registered = true;
                         this.emit('endpointchange', this.cloudDevice.endpoint);
@@ -70,6 +72,7 @@ function BtDeviceLinkDevice(address, cloudDefinition, cloudDevice) {
                 break;
             case 'disconnected':
                 if (!this.registered) return;
+                if (this.inFotaMode) return; // don't de-register during FOTA
 
                 console.log(CON_PREFIX, '[' + this.address + ']', 'Deregistering');
                 this.cloudDevice.deregister()
@@ -159,6 +162,8 @@ BtDeviceLinkDevice.prototype.bleModelUpdated = function(model) {
     let old = this.model;
 
     this.bleModel = model;
+    this.supportsUpdate = fota.supportsUpdate(model); // either a string or false
+    this.emit('supports-update-change', this.supportsUpdate);
 
     (async function() {
         try {
@@ -195,7 +200,7 @@ BtDeviceLinkDevice.prototype.bleModelUpdated = function(model) {
                 console.log(CON_PREFIX, '[' + this.address + ']', 'OK Deregister');
 
                 console.log(CON_PREFIX, '[' + this.address + ']', 'Register');
-                await this.cloudDevice.register(curr);
+                await this.cloudDevice.register(curr, this.supportsUpdate);
                 console.log(CON_PREFIX, '[' + this.address + ']', 'OK Register');
 
                 this.modelUpdateInProgress = false;
@@ -260,6 +265,39 @@ BtDeviceLinkDevice.prototype.onPut = function(path, value) {
     }
 
     this.cloudDefinition.write[path.substr(1)](value, write);
+};
+
+BtDeviceLinkDevice.prototype.onFota = async function(firmware) {
+    if (!this.bleDevice) {
+        console.log(CON_PREFIX, '[' + this.address + ']', `FOTA came in, but no bleDevice`);
+        return;
+    }
+
+    try {
+        this.inFotaMode = true;
+
+        this.cloudDevice.setFotaUpdating();
+
+        await fota.applyUpdate(this.supportsUpdate, this.bleDevice, firmware, progress => {
+            this.emit('fota-progress', progress);
+        });
+
+        await this.cloudDevice.setFotaComplete();
+        this.emit('fota-complete');
+    }
+    catch (ex) {
+        this.emit('fota-error', ex);
+        console.log(CON_PREFIX, '[' + this.address + ']', `FOTA failed`, ex);
+        this.cloudDevice.setFotaError(ex);
+    }
+    finally {
+        this.inFotaMode = false;
+
+        // if we're still disconnected, then deregister from Cloud as well
+        if (this.bleDevice.peripheral.state === 'disconnected') {
+            this.emit('statechange', 'disconnected');
+        }
+    }
 };
 
 BtDeviceLinkDevice.prototype.localNameChanged = function(localName) {

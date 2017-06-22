@@ -30,6 +30,13 @@ let clientService; // needs to be accessible from SIGINT
         // load devices from disk
         let devices = await deviceDb.loadAllDevices();
 
+        // attach listeners to all devices
+        Object.keys(devices).forEach(dk => {
+            // fota hands control over to bleat. re-start scanning when done...
+            devices[dk].on('fota-complete', () => ble.startScanning());
+            devices[dk].on('fota-error', () => ble.startScanning());
+        });
+
         console.log(CON_PREFIX, `Started... Loaded ${Object.keys(devices).length} devices`);
 
         // instantiate the BLE library
@@ -38,10 +45,20 @@ let clientService; // needs to be accessible from SIGINT
 
         // events from the db
         deviceDb.on('add', address => {
-            if (devices[address]) return;
+            if (devices[address]) {
+                // fota hands control over to bleat. re-start scanning when done...
+                devices[address].on('fota-complete', () => ble.startScanning());
+                devices[address].on('fota-error', () => ble.startScanning());
+                return;
+            }
 
             deviceDb.loadDevice(address).then(device => {
                 devices[address] = device;
+
+                // fota hands control over to bleat. re-start scanning when done...
+                device.on('fota-complete', () => ble.startScanning());
+                device.on('fota-error', () => ble.startScanning());
+
             }).catch(err => console.error(CON_PREFIX, 'Error loading device', address, err));
         });
         deviceDb.on('change', (address, definition) => {

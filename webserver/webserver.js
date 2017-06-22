@@ -46,7 +46,7 @@ function stringifyGatt(gatt) {
         return `    "${sk}": {\n` + Object.keys(gatt[sk]).map(ck => {
             if (!gatt[sk][ck] || !gatt[sk][ck].value) return undefined;
             return `        "${ck}": [ ${gatt[sk][ck].value.join(', ')} ]`;
-        }).join(',\n') + '\n    }';
+        }).filter(n => !!n).join(',\n') + '\n    }';
     }).join(',\n') + '\n}' : '{}';
 }
 
@@ -111,7 +111,8 @@ app.get('/device/:deveui', wrap(function*(req, res, next) {
         lwm2m: lwm2m ? JSON.stringify(lwm2m, null, 4) : 'Waiting for connection...',
         unconfigured: (Object.keys(device.cloudDefinition.read).length === 1 &&
             Object.keys(device.cloudDefinition.read)[0] === 'example/0/rule') ? 'unconfigured' : '',
-        mbed_type: device.cloudDefinition.security.mbed_type || ''
+        mbed_type: device.cloudDefinition.security.mbed_type || '',
+        supportsUpdate: device.supportsUpdate ? '- Supports update' : ''
     };
 
     res.render('device.html', model);
@@ -220,7 +221,7 @@ io.on('connection', socket => {
         socket.emit('modelchange', stringifyGatt((ble.getDevice(eui) || {}).model));
         socket.emit('lwm2mchange', JSON.stringify(devices[eui].lwm2m, null, 4));
 
-        var sc, mc, lc, ln, en;
+        let sc, mc, lc, ln, en, su, fp, fc, fe;
 
         devices[eui].on('statechange', sc = function(state, error) {
             socket.emit('statechange', mapState(state), error && error.toString());
@@ -234,6 +235,19 @@ io.on('connection', socket => {
         devices[eui].on('endpointchange', en = function(endpoint) {
             socket.emit('endpointchange', endpoint);
         });
+        devices[eui].on('supports-update-change', su = function(update) {
+            socket.emit('supportsupdatechange', update ? '- Supports update' : '');
+        });
+        devices[eui].on('fota-progress', fp = function(progress) {
+            socket.emit('fotaprogress', progress);
+        });
+        devices[eui].on('fota-complete', fc = function() {
+            socket.emit('fotacomplete');
+        });
+        devices[eui].on('fota-error', fe = function(error) {
+            socket.emit('fotaerror', error);
+        });
+
 
         // @todo, lwm2mchange is no longer there...
         devices[eui].on('lwm2mchange', lc = function(model) {
@@ -253,6 +267,10 @@ io.on('connection', socket => {
                 devices[eui].removeListener('lwm2mchange', lc);
                 devices[eui].removeListener('localnamechange', ln);
                 devices[eui].removeListener('endpointchange', en);
+                devices[eui].removeListener('supports-update-change', su);
+                devices[eui].removeListener('fota-progress', fp);
+                devices[eui].removeListener('fota-complete', fc);
+                devices[eui].removeListener('fota-error', fe);
             } catch (ex) {}
         });
     });

@@ -3,8 +3,24 @@ const url = require('url');
 const RPCClient = require('./rpc-client');
 const SSHClient = require('./ssh-client');
 const manifestParser = require('./manifest-parser');
+const fs = require('fs');
 
 const CON_PR = '\x1b[34m[ClientService]\x1b[0m';
+
+const ARM_UC_MONITOR_STATE_NONE              = 0;
+const ARM_UC_MONITOR_STATE_DOWNLOADING       = 1;
+const ARM_UC_MONITOR_STATE_DOWNLOADED        = 2;
+const ARM_UC_MONITOR_STATE_UPDATING          = 3;
+
+const ARM_UC_MONITOR_RESULT_NONE             = 0;
+const ARM_UC_MONITOR_RESULT_SUCCESS          = 1;
+const ARM_UC_MONITOR_RESULT_ERROR_STORAGE    = 2;
+const ARM_UC_MONITOR_RESULT_ERROR_MEMORY     = 3;
+const ARM_UC_MONITOR_RESULT_ERROR_CONNECTION = 4;
+const ARM_UC_MONITOR_RESULT_ERROR_CRC        = 5;
+const ARM_UC_MONITOR_RESULT_ERROR_TYPE       = 6;
+const ARM_UC_MONITOR_RESULT_ERROR_URI        = 7;
+const ARM_UC_MONITOR_RESULT_ERROR_UPDATE     = 8;
 
 function MbedDevice(id, clientType, rpcHost, rpcUsername, rpcPrivateKey, rpcBinary, rpcClientPort) {
     // inherit from eventemitter
@@ -65,7 +81,7 @@ MbedDevice.prototype.setValue = async function(path, value) {
 };
 
 MbedDevice.prototype.deregister = async function() {
-    const ID_PR = '[' + this.id + ']';
+    const ID_PR = this.ID_PR;
 
     if (this.rpcClient && this.rpcClient.is_open) {
         console.log(CON_PR, ID_PR, 'Deregistering');
@@ -88,7 +104,9 @@ MbedDevice.prototype.deregister = async function() {
 };
 
 MbedDevice.prototype.registerUpdateResources = async function() {
-    const ID_PR = '[' + this.id + ']';
+    const ID_PR = this.ID_PR;
+
+    let rpc = this.rpcClient;
 
     // update resources
     await rpc.createFunction('5/0/1', url => {
@@ -99,76 +117,101 @@ MbedDevice.prototype.registerUpdateResources = async function() {
         console.log(CON_PR, ID_PR, '5/0/2 Execute firmware update call');
     });
 
-    let fwState = await rpc.createResourceInt('5/0/3', 0, RPCClient.GET_ALLOWED, true);
-    let fwResult = await rpc.createResourceInt('5/0/5', 0, RPCClient.GET_ALLOWED, true);
-    let fwName = await rpc.createResourceString('5/0/6', '', RPCClient.GET_ALLOWED, true); // sha256 hash of the fw
-    let fwVersion = await rpc.createResourceString('5/0/7', '', RPCClient.GET_ALLOWED, true); // timestamp from manifest
+    let fwState = this.fwState = await rpc.createResourceInt('5/0/3', ARM_UC_MONITOR_STATE_NONE, RPCClient.GET_ALLOWED, true);
+    let fwResult = this.fwResult = await rpc.createResourceInt('5/0/5', ARM_UC_MONITOR_RESULT_NONE, RPCClient.GET_ALLOWED, true);
+    let fwName = this.fwName = await rpc.createResourceString('5/0/6', '', RPCClient.GET_ALLOWED, true); // sha256 hash of the fw
+    let fwVersion = this.fwVersion = await rpc.createResourceString('5/0/7', '', RPCClient.GET_ALLOWED, true); // timestamp from manifest
 
     await rpc.createFunction('5/0/0', async function (package) {
         try {
             console.log(CON_PR, ID_PR, '5/0/0 Firmware manifest was received');
 
-            let manifest = await manifestParser.parseAndVerifyManifest(
-                'fa6b4a53-d5ad-5fdf-be9d-e663e4d41ffe', // vendor ID
-                '316d1676-a93b-544c-9b7b-be43a3d5bfa9', // class ID
-                fs.readFileSync('/Users/janjon01/repos/simple-cloud-client-example/.update-certificates/default.der'), // cert
-                package
-            );
+            // reset the state of the resources
+            await fwState.setValue(ARM_UC_MONITOR_STATE_NONE);
+            await fwResult.setValue(ARM_UC_MONITOR_RESULT_NONE);
+            await fwName.setValue('');
+            await fwVersion.setValue('');
+
+            // parse and verify manifest
+            let manifest;
+            try {
+                // @todo: these should move to the defintion file...
+                manifest = this.manifest = await manifestParser.parseAndVerifyManifest(
+                    'fa6b4a53-d5ad-5fdf-be9d-e663e4d41ffe', // vendor ID
+                    '316d1676-a93b-544c-9b7b-be43a3d5bfa9', // class ID
+                    fs.readFileSync('/Users/janjon01/repos/simple-cloud-client-example/.update-certificates/default.der'), // cert
+                    package
+                );
+            }
+            catch (ex) {
+                await fwState.setValue(ARM_UC_MONITOR_STATE_NONE);
+                await fwResult.setValue(ARM_UC_MONITOR_RESULT_ERROR_UPDATE);
+                throw ex;
+            }
             console.log(CON_PR, ID_PR, 'manifest', manifest);
-
-            // download the firmware
-            let firmware = await manifestParser.downloadAndVerifyFirmware(manifest);
-            console.log(CON_PR, ID_PR, 'firmware is', firmware.length, 'bytes');
-
-            // ok...
-            await sleep(5000);
 
             await fwState.setValue(ARM_UC_MONITOR_STATE_DOWNLOADING);
             console.log(CON_PR, ID_PR, 'State is now', 'ARM_UC_MONITOR_STATE_DOWNLOADING');
 
-            await sleep(5000);
+            // download the firmware
+            let firmware;
+            try {
+                firmware = await manifestParser.downloadAndVerifyFirmware(manifest);
+            }
+            catch (ex) {
+                await fwState.setValue(ARM_UC_MONITOR_STATE_NONE);
+                await fwResult.setValue(ARM_UC_MONITOR_RESULT_ERROR_URI);
+                throw ex;
+            }
+            console.log(CON_PR, ID_PR, 'Firmware size is', firmware.length, 'bytes');
 
             await fwState.setValue(ARM_UC_MONITOR_STATE_DOWNLOADED);
             console.log(CON_PR, ID_PR, 'State is now', 'ARM_UC_MONITOR_STATE_DOWNLOADED');
 
-            await sleep(5000);
-
-            await fwState.setValue(ARM_UC_MONITOR_STATE_UPDATING);
-            console.log(CON_PR, ID_PR, 'State is now', 'ARM_UC_MONITOR_STATE_UPDATING');
-
-            await sleep(5000);
-
-            await fwResult.setValue(ARM_UC_MONITOR_RESULT_SUCCESS);
-            console.log(CON_PR, ID_PR, 'Result is now', 'ARM_UC_MONITOR_RESULT_SUCCESS');
-
-            await sleep(5000);
-
-            await fwName.setValue(manifest.payload.reference.hash);
-            await fwVersion.setValue(manifest.timestamp.toString());
-            console.log(CON_PR, ID_PR, 'Set fwName and fwVersion');
-
-            await sleep(5000);
-
-            await fwState.setValue(ARM_UC_MONITOR_STATE_NONE);
-            console.log(CON_PR, ID_PR, 'State is now', 'ARM_UC_MONITOR_STATE_NONE');
+            this.emit('fota', firmware /* buffer */);
         }
         catch (ex) {
             console.error('Downloading firmware failed...', ex);
         }
-    });
+    }.bind(this));
 };
 
-MbedDevice.prototype.register = async function(lwm2m) {
+MbedDevice.prototype.setFotaUpdating = async function () {
+    await this.fwState.setValue(ARM_UC_MONITOR_STATE_UPDATING);
+
+    console.log(CON_PR, this.ID_PR, 'Result is now', ARM_UC_MONITOR_STATE_UPDATING);
+};
+
+MbedDevice.prototype.setFotaError = async function (error) {
+    await this.fwState.setValue(ARM_UC_MONITOR_STATE_NONE);
+    await this.fwResult.setValue(ARM_UC_MONITOR_RESULT_ERROR_UPDATE);
+
+    console.log(CON_PR, this.ID_PR, 'Result is now', ARM_UC_MONITOR_RESULT_ERROR_UPDATE);
+};
+
+MbedDevice.prototype.setFotaComplete = async function () {
+    await this.fwResult.setValue(ARM_UC_MONITOR_RESULT_SUCCESS);
+    console.log(CON_PR, this.ID_PR, 'Result is now', 'ARM_UC_MONITOR_RESULT_SUCCESS');
+
+    await this.fwName.setValue(this.manifest.payload.reference.hash);
+    await this.fwVersion.setValue(this.manifest.timestamp.toString());
+    console.log(CON_PR, this.ID_PR, 'Set fwName and fwVersion');
+
+    await this.fwState.setValue(ARM_UC_MONITOR_STATE_NONE);
+    console.log(CON_PR, this.ID_PR, 'State is now', 'ARM_UC_MONITOR_STATE_NONE');
+}
+
+MbedDevice.prototype.register = async function(lwm2m, supportsUpdate) {
 
     let ssh, rpc;
 
-    const ID_PR = '[' + this.id + ']';
+    const ID_PR = this.ID_PR;
 
     try {
         // set resource model
         this.$setResources(lwm2m);
 
-        console.log(CON_PR, ID_PR, 'Registering with model', lwm2m);
+        console.log(CON_PR, ID_PR, 'Registering with model', lwm2m, 'supporting update', supportsUpdate);
 
         // first create a new device...
         let ssh = this.sshClient = await SSHClient.spawn(this.rpcHost,
@@ -239,7 +282,9 @@ MbedDevice.prototype.register = async function(lwm2m) {
 
         console.log(CON_PR, ID_PR, 'Setting resources');
         await Promise.all(actions);
-        await this.registerUpdateResources();
+        if (supportsUpdate) {
+            await this.registerUpdateResources();
+        }
         console.log(CON_PR, ID_PR, 'Setting resources OK');
 
         console.log(CON_PR, this.ID_PR, 'Registering');
