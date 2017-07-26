@@ -199,7 +199,7 @@ MbedDevice.prototype.setFotaComplete = async function () {
 
     await this.fwState.setValue(ARM_UC_MONITOR_STATE_NONE);
     console.log(CON_PR, this.ID_PR, 'State is now', 'ARM_UC_MONITOR_STATE_NONE');
-}
+};
 
 MbedDevice.prototype.register = async function(lwm2m, supportsUpdate) {
 
