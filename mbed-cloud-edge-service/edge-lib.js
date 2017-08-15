@@ -1,17 +1,22 @@
 const fs = require('fs');
 const MbedDevice = require('./device');
+const EdgeRpc = require('./edge-rpc-client');
 
 const CON_PR = '\x1b[34m[ClientService]\x1b[0m';
 
-function RemoteClientService(host, username, privateKey, binary) {
-    this.host = host;
-    this.username = username;
-    this.privateKey = privateKey;
-    this.binary = binary;
+function RemoteClientService(host, port) {
+    this.edgeRpc = new EdgeRpc(host, port);
 
     this.devices = [];
-    this.nextClientPort = 9300;
 }
+
+RemoteClientService.prototype.init = async function() {
+    return this.edgeRpc.init();
+};
+
+RemoteClientService.prototype.deinit = async function() {
+    return this.edgeRpc.deinit();
+};
 
 /**
  * List all devices registered in the bridge.
@@ -54,7 +59,7 @@ RemoteClientService.prototype.createCloudDevice = async function(id, clientType)
     const ID_PR = '[' + id + ']';
 
     try {
-        let device = new MbedDevice(id, clientType, this.host, this.username, this.privateKey, this.binary, this.nextClientPort++);
+        let device = new MbedDevice(id, clientType, this.edgeRpc);
 
         this.devices.push(device);
 
@@ -80,5 +85,3 @@ RemoteClientService.prototype.deleteDevice = async function(id) {
 };
 
 module.exports = RemoteClientService;
-
-

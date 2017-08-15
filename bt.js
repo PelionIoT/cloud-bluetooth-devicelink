@@ -20,6 +20,13 @@ let clientService; // needs to be accessible from SIGINT
                 config.remoteClientService.host, config.remoteClientService.username,
                 config.remoteClientService.privateKey, config.remoteClientService.binary);
         }
+        else if (config.clientService === 'mbed-cloud-edge') {
+            let CloudEdgeService = require('./mbed-cloud-edge-service/edge-lib');
+            clientService = new CloudEdgeService(
+                config.cloudEdge.host, config.cloudEdge.port
+            );
+            await clientService.init();
+        }
         else {
             throw 'Unknown clientService "' + config.clientService + '"';
         }
@@ -101,9 +108,15 @@ process.on('SIGINT', function () {
     Promise.all(clientService.getAllRegisteredDevices().map(d => {
         return d.deregister();
     })).then(() => {
+        console.log(CON_PREFIX, 'Unregistered devices, de-initializing clientService');
+        if (!clientService.deinit) return Promise.resolve();
+
+        return clientService.deinit();
+    }).then(() => {
         console.log(CON_PREFIX, 'Cleanup complete');
         process.exit(1);
     }).catch(err => {
+        console.log(CON_PREFIX, 'Cleanup failed', err);
         process.exit(1);
     });
 });

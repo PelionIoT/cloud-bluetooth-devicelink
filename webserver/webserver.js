@@ -109,8 +109,12 @@ app.get('/device/:deveui', wrap(function*(req, res, next) {
         error: device.error,
         gatt: gatt_str,
         lwm2m: lwm2m ? JSON.stringify(lwm2m, null, 4) : 'Waiting for connection...',
-        unconfigured: (Object.keys(device.cloudDefinition.read).length === 1 &&
-            Object.keys(device.cloudDefinition.read)[0] === 'example/0/rule') ? 'unconfigured' : '',
+        unconfigured: (
+            Object.keys(device.cloudDefinition.read).length === 1 &&
+            Object.keys(device.cloudDefinition.write).length &&
+            Object.keys(device.cloudDefinition.read)[0] === '3347/0/5500' &&
+            Object.keys(device.cloudDefinition.write)[0] === '3311/0/5850'
+        ) ? 'unconfigured' : '',
         mbed_type: device.cloudDefinition.security.mbed_type || '',
         supportsUpdate: device.supportsUpdate ? '- Supports update' : ''
     };
@@ -173,16 +177,16 @@ app.post('/new-device', wrap(function*(req, res, next) {
             access_key: req.body.connector_ak,
         },
         read: {
-            "example/0/rule": "1PLACEHOLDER"
+            "3347/0/5500": "1PLACEHOLDER"
         },
         write: {
-            "example/0/rule": "2PLACEHOLDER"
+            "3311/0/5850": "2PLACEHOLDER"
         }
     }, null, 4);
 
     file = file.replace('"1PLACEHOLDER"', 'function (m) {\n' +
         "        // read characteristics like: m['180a']['2a29'].toString('ascii'))\n" +
-        "        return 'Hello world';\n" +
+        "        return 1337;\n" +
         "    }");
     file = file.replace('"2PLACEHOLDER"', 'function (value, write) {\n' +
         "        // write characteristics like: write('180a/2a29', [ 0x10, 0x30 ])\n" +

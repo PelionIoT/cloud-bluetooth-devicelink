@@ -1,7 +1,6 @@
 const EventEmitter = require('events');
 const url = require('url');
 const RPCClient = require('./rpc-client');
-const SSHClient = require('./ssh-client');
 const manifestParser = require('../ble-devicelink/manifest-parser');
 const fs = require('fs');
 
@@ -22,7 +21,7 @@ const ARM_UC_MONITOR_RESULT_ERROR_TYPE       = 6;
 const ARM_UC_MONITOR_RESULT_ERROR_URI        = 7;
 const ARM_UC_MONITOR_RESULT_ERROR_UPDATE     = 8;
 
-function MbedDevice(id, clientType, rpcHost, rpcUsername, rpcPrivateKey, rpcBinary, rpcClientPort) {
+function MbedDevice(id, clientType, edgeRpc) {
     // inherit from eventemitter
     EventEmitter.call(this);
 
@@ -32,11 +31,7 @@ function MbedDevice(id, clientType, rpcHost, rpcUsername, rpcPrivateKey, rpcBina
     this.clientType = clientType;
     this.endpoint = '';
 
-    this.rpcHost = rpcHost;
-    this.rpcUsername = rpcUsername;
-    this.rpcPrivateKey = rpcPrivateKey;
-    this.rpcBinary = rpcBinary;
-    this.rpcClientPort = rpcClientPort;
+    this.edgeRpc = edgeRpc;
 
     this.ID_PR = '[' + this.id + ']';
 
@@ -213,18 +208,8 @@ MbedDevice.prototype.register = async function(lwm2m, supportsUpdate) {
 
         console.log(CON_PR, ID_PR, 'Registering with model', lwm2m, 'supporting update', supportsUpdate);
 
-        // first create a new device...
-        let ssh = this.sshClient = await SSHClient.spawn(this.rpcHost,
-                                                         this.rpcUsername,
-                                                         this.rpcPrivateKey,
-                                                         this.rpcBinary,
-                                                         this.rpcClientPort,
-                                                         this.id);
-
-        console.log(CON_PR, ID_PR, 'Spawned SSH Client');
-
         // then start an RPC channel
-        let rpc = this.rpcClient = new RPCClient(this.rpcHost, ssh.port);
+        let rpc = this.rpcClient = new RPCClient(this.edgeRpc, this.id);
         await rpc.open();
 
         console.log(CON_PR, ID_PR, 'Opened RPC Channel');

@@ -2,11 +2,28 @@
 
 This is an *experimental* way to connect Bluetooth Low Energy devices into mbed Cloud.
 
-## Setup
+## Setup with mbed Cloud Edge
+
+1. Install mbed Cloud Edge.
+    * You can run mbed Cloud Edge in an Ubuntu VM and this application on your main OS.
+1. Install [node.js 7+](https://nodejs.org/en/).
+
+Start via:
+
+```
+# start mbed Cloud Edge
+$ ./path-to-mbed-cloud-edge 9100 9101
+
+# install and start mbed Cloud Bluetooth Devicelink
+$ npm install
+$ node bt.js mbed-cloud-edge --edge-host 127.0.0.1 --edge-port 9100
+```
+
+## Setup with mbed Cloud Linux Devicelink 2.0
 
 1. Install [mbed Cloud Linux Devicelink 2.0](https://github.com/janjongboom/mbed-cloud-client-example-restricted/tree/RR1.2.1-EA-fake-fota).
     * You can run mbed Cloud Linux Devicelink in an Ubuntu VM and this application on your main OS.
-2. Install [node.js 6+](https://nodejs.org/en/).
+2. Install [node.js 7+](https://nodejs.org/en/).
 
 ### On Ubuntu / Debian
 
@@ -31,11 +48,11 @@ $ node bt.js over-ssh --rpc-host 192.168.23.146 --rpc-username janjon01 --rpc-pr
 
 mbed Cloud Bluetooth Devicelink opens a webserver on `localhost:3000` and spawns up instances of mbed Cloud Linux Devicelink on port 9300 and up.
 
-Now navigate to the web interface at http://localhost:3000 and add your device.
+## Usage
+
+Navigate to the web interface at http://localhost:3000 and add your device.
 
 **Note on macOS:** If you don't see any devices, and `--log-seen-devices` yields your device with an 'unknown' MAC address; start the process with `--mac-os-fix` *once*, then start the process normally.
-
-### Options
 
 * `--log-seen-devices` - logs all devices seen, useful for debugging.
 * `--client-service [url]` - sets the path to the mbed Cloud Devicelink service.

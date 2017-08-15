@@ -81,21 +81,6 @@
 
         <hr>
 
-        <div id="connector">
-            <h2>What is your mbed Cloud domain?</h2>
-            <p>The domain is listed in <a href="https://connector.mbed.com/#credentials" target="_blank">security certificates</a>.</p>
-            <p>
-                <input name="connector_domain" class="creds">
-            </p>
-
-            <h2>mbed Cloud API Key</h2>
-            <p>
-                <input name="connector_ak" class="creds">
-            </p>
-        </div>
-
-        <div id="cloud"><!--todo--></div>
-
         <input type="hidden" name="eui">
 
         <p><input type="submit" value="Continue"></p>
@@ -127,8 +112,7 @@
             el.onclick = function() {
                 document.querySelector('input[name="eui"]').value = device.eui;
 
-                document.body.classList.remove('step1');
-                document.body.classList.add('step2');
+                document.querySelector('#save').submit();
             };
         }
 
@@ -143,25 +127,6 @@
         }
     });
 
-  </script>
-  <script>
-    document.querySelector('#save').onsubmit = function() {
-        var domain = document.querySelector('input[name="connector_domain"]').value;
-        var ak = document.querySelector('input[name="connector_ak"]').value;
-
-        if (!domain) {
-            alert('Please enter your Connector domain');
-            return false;
-        }
-        if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(domain)) {
-            alert('Domain is not a valid UUID');
-            return false;
-        }
-        if (!ak) {
-            alert('Please enter your Connector access key');
-            return false;
-        }
-    };
   </script>
 
   <script src="/clear-querystring.js"></script>
