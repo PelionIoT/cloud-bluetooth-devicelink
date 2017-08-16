@@ -63,9 +63,12 @@ module.exports = {
             let dfuDevice = await dfu.findDevice({ name: 'DfuTarg'});
             progressCallback('Found DFU target');
 
-            if (getAddress(bleDevice.peripheral.address)[5] + 1 !== getAddress(dfuDevice.id)[5]) {
-                throw 'Address mismatch. Expected last octet to be ' + (getAddress(bleDevice.peripheral.address)[5] + 1).toString(16) +
-                    ', but was ' + getAddress(dfuDevice.id)[5];
+            // for some reason ID can be non-mac address, so then I can't check it...
+            if (dfuDevice.id.length !== 32) {
+                if (getAddress(bleDevice.peripheral.address)[5] + 1 !== getAddress(dfuDevice.id)[5]) {
+                    throw 'Address mismatch. Expected last octet to be ' + (getAddress(bleDevice.peripheral.address)[5] + 1).toString(16) +
+                        ', but was ' + getAddress(dfuDevice.id)[5];
+                }
             }
 
             let hex = firmware.toString();

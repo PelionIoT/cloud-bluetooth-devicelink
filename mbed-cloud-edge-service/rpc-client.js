@@ -2,20 +2,21 @@ const promisify = require('es6-promisify');
 const EventEmitter = require('events');
 
 /**
- * RPCClient for mbed Cloud Devicelink Server
+ * RPCClient for mbed Cloud Edge
  * @param {*} edgeRpc Instance of edge-rpc-client
  */
 function RPCClient(edgeRpc, id) {
     EventEmitter.call(this);
 
     this.edgeRpc = edgeRpc;
-    this.id = id.replace(/:/g, '');
+    this.id = id;
+    this.rpcId = id.replace(/:/g, '');
     this.is_open = () => edgeRpc.is_open();
     this.routes = {};
 
-    this.is_registered = false;
+    this._onTerminateQueue = [];
 
-    this._getQueueIv = setInterval(this._getQueue.bind(this), 200);
+    this.is_registered = false;
 }
 
 RPCClient.prototype = Object.create(EventEmitter.prototype);
@@ -40,15 +41,9 @@ RPCClient.prototype._setValue = function(route, newValue) {
     r.value = newValue;
 
     return this.edgeRpc.sendJsonRpc('write', {
-        'device-id': this.id,
+        'device-id': this.rpcId,
         'objects': this._getObjectModel()
     });
-};
-
-RPCClient.prototype._getQueue = function() {
-    if (!this.is_open()) return;
-
-    // not implemented yet...
 };
 
 RPCClient.prototype._createResource = function(type, route, value, opr, observable, callback) {
@@ -70,16 +65,19 @@ RPCClient.prototype._createResource = function(type, route, value, opr, observab
     if (typeof opr === 'undefined') opr = RPCClient.GET_PUT_ALLOWED;
     if (typeof observable === 'undefined') observable = true;
 
-    this.routes[route] = {
+    let o = this.routes[route] = {
         type: type,
         value: value,
         opr: opr,
         observable: observable,
-        callback: callback
+        callback: callback,
+        setValue: newValue => {
+            return this._setValue(route, newValue);
+        }
     };
 
     // actual adding happens in register call
-    return Promise.resolve();
+    return Promise.resolve(o);
 };
 
 RPCClient.prototype.createResourceString = function(route, value, opr, observable, callback) {
@@ -101,11 +99,25 @@ RPCClient.prototype.createFunction = function(route, callback) {
 
     this.routes[route] = {
         type: 'function',
+        opr: RPCClient.POST_ALLOWED,
         get route() {
             return route;
         },
         callback: callback
     };
+
+    var onExecuted = (deviceId, r_route, buff) => {
+        if (deviceId !== this.id) return;
+        if (route !== r_route) return;
+
+        callback(buff);
+    };
+
+    this.edgeRpc.on('resource-executed', onExecuted);
+
+    this._onTerminateQueue.push(() => {
+        this.edgeRpc.removeListener('resource-executed', onExecuted);
+    })
 
     // actual adding happens in register call
     return Promise.resolve();
@@ -134,7 +146,7 @@ RPCClient.prototype._getObjectModel = function() {
             'item-id': resId,
             'operations': this.routes[route].opr,
             'type': this.routes[route].type === 'function' ? 'opaque' : this.routes[route].type,
-            'value': this.routes[route].value
+            'value': (this.routes[route].value || '').toString()
         });
     }
 
@@ -145,7 +157,7 @@ RPCClient.prototype.register = async function() {
     await this.edgeRpc.sendJsonRpc('device_register', {
         'lifetime': 86400,
         'queuemode': 'Q',
-        'device-id': this.id,
+        'device-id': this.rpcId,
         'objects': this._getObjectModel()
     });
 
@@ -154,7 +166,7 @@ RPCClient.prototype.register = async function() {
 
 RPCClient.prototype.unregister = async function() {
     await this.edgeRpc.sendJsonRpc('device_unregister', {
-        'device-id': this.id,
+        'device-id': this.rpcId,
     });
 
     this.is_registered = false;
@@ -162,6 +174,10 @@ RPCClient.prototype.unregister = async function() {
 
 RPCClient.prototype.terminate = function() {
     clearInterval(this._getQueueIv);
+
+    for (let fn of this._onTerminateQueue) {
+        fn();
+    }
 
     return Promise.resolve();
 }

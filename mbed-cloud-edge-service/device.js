@@ -89,12 +89,6 @@ MbedDevice.prototype.deregister = async function() {
         this.rpcClient.terminate();
     }
 
-    try {
-        console.log(CON_PR, ID_PR, 'Terminating SSH Client');
-        this.sshClient && this.sshClient.close();
-    }
-    catch (ex) {}
-
     this.endpoint = '';
 };
 
@@ -214,12 +208,16 @@ MbedDevice.prototype.register = async function(lwm2m, supportsUpdate) {
 
         console.log(CON_PR, ID_PR, 'Opened RPC Channel');
 
-        rpc.on('resource-updated', (route, newValue) => {
+        this.edgeRpc.on('resource-updated', (deviceId, route, newValue) => {
+            if (deviceId !== this.id) return;
+
             console.log('resource updated', route, newValue);
             this.emit('put', '/' + route, newValue);
         });
 
-        rpc.on('resource-executed', (route, data) => {
+        this.edgeRpc.on('resource-executed', (deviceId, route, data) => {
+            if (deviceId !== this.id) return;
+
             this.emit('post', '/' + route, data);
         });
 

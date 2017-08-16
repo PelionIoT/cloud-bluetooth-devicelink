@@ -18,12 +18,44 @@ function EdgeRpcClient(host, port) {
     this._rpcId = 0;
 
     this._is_open = false;
+    this._bytes_left = 0;
+    this._buffer = null;
+
+    this._getQueueIv = setInterval(this._getQueue.bind(this), 200);
 }
 
 EdgeRpcClient.prototype = Object.create(EventEmitter.prototype);
 
 EdgeRpcClient.prototype.is_open = function() {
     return this._is_open;
+};
+
+EdgeRpcClient.prototype._getQueue = async function() {
+    if (!this.is_open()) return;
+
+    let q;
+    try {
+        q = await this.sendJsonRpc('get_update_queue', {});
+    }
+    catch (ex) {
+        console.warn(CON_PR, 'Retrieving update queue failed');
+        return;
+    }
+
+    for (let item of q) {
+        // console.log(CON_PR, 'Resource was updated through mbed Cloud', item);
+
+        let buff = new Buffer(item.value, 'base64');
+        let route = item['object-id'] + '/' + item['object-instance-id'] + '/' + item['resource-id'];
+        let deviceId = item['device-id'].split(/(\d\d)/).filter(f=>!!f).join(':');
+
+        if (item.method === 1) {
+            this.emit('resource-updated', deviceId, route, buff);
+        }
+        else if (item.method === 2) {
+            this.emit('resource-executed', deviceId, route, buff);
+        }
+    }
 };
 
 EdgeRpcClient.prototype._writeControlCommand = function(buffer) {
@@ -75,6 +107,7 @@ EdgeRpcClient.prototype.sendControlCommand = function(buffer, waitForResponse) {
 };
 
 EdgeRpcClient.prototype.sendJsonRpc = async function(method, params) {
+    let self = this;
     let id = ++this._rpcId;
     let client = this.client;
 
@@ -101,6 +134,31 @@ EdgeRpcClient.prototype.sendJsonRpc = async function(method, params) {
         }, 10000);
 
         function onData(data) {
+            // are we waiting for an incomplete message to finish?
+            if (self._bytes_left > 0) {
+                if (self._bytes_left === data.length) {
+                    // ok! now we're complete
+                    data = Buffer.concat([ self._buffer, data ]);
+
+                    self._buffer = null;
+                    self._bytes_left = 0;
+
+                    return onData(data);
+                }
+                else if (self._bytes_left - data.length > 0) {
+                    self._buffer = Buffer.concat([ self._buffer, data ]);
+                    self._bytes_left -= data.length;
+                    return;
+                }
+                else {
+                    console.warn(CON_PR, '[JSONRPC] Tried to complete packet, but has also content for other packet...',
+                        'bytes left:', self._bytes_left, 'but data length was', data.length);
+                    self._buffer = null;
+                    self._bytes_left = 0;
+                    return;
+                }
+            }
+
             let length = data.readUInt32BE(0, 4);
 
             if (length === 0) { // datacmd frame
@@ -108,8 +166,12 @@ EdgeRpcClient.prototype.sendJsonRpc = async function(method, params) {
             }
 
             if (data.length - 4 !== length) {
-                console.log(CON_PR, '[JSONRPC] Did not get full length in this frame... Need to implement a buffer. Very annoying',
-                    data.length, length);
+                console.log(CON_PR, '[JSONRPC] Did not get full length in this frame. Need', length - data.length + 4, 'more bytes:',
+                    'length', length, 'data.length', data.length);
+                if (length - data.length + 4 < 0) return /*wtf?*/;
+
+                self._buffer = data;
+                self._bytes_left = length - data.length + 4; // yeah, this seems wrong... trying to figure out why
                 return;
             }
 
