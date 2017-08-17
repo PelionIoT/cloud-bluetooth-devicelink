@@ -21,9 +21,9 @@ let clientService; // needs to be accessible from SIGINT
                 config.remoteClientService.privateKey, config.remoteClientService.binary);
         }
         else if (config.clientService === 'mbed-cloud-edge') {
-            let CloudEdgeService = require('./mbed-cloud-edge-service/edge-lib');
+            let CloudEdgeService = require('mbed-cloud-edge-js/edge-lib');
             clientService = new CloudEdgeService(
-                config.cloudEdge.host, config.cloudEdge.port
+                config.cloudEdge.host, config.cloudEdge.port, config.cloudEdge.name
             );
             await clientService.init();
         }

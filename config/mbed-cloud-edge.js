@@ -21,7 +21,8 @@ module.exports = {
     clientService: 'mbed-cloud-edge',
     cloudEdge: {
         host: edgeHost,
-        port: edgePort
+        port: edgePort,
+        name: 'bluetooth_devicelink'
     },
     logSeenDevices: logSeenDevices,
     deviceFolder: Path.join(__dirname, '../devices'),
