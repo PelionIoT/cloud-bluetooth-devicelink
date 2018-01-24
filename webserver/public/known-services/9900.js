@@ -2,14 +2,14 @@
   function generate(m) {
     return {
       read: {
-        "led/0/color": function (m) {
+        "3311/0/5706": function (m) {
           // read characteristics like: m['180a']['2a29'].toString('ascii'))
           var a = m['9900']['9901'];
           return (a[2] << 16) + (a[1] << 8) + a[2];
         }
       },
       write: {
-        "led/0/color": function (value, write) {
+        "3311/0/5706": function (value, write) {
           // write characteristics like: write('180a/2a29', [ 0x10, 0x30 ])
           // note: value is string
           var v = Number(value);

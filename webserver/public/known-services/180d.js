@@ -2,10 +2,12 @@
   function generate(m) {
     return {
       read: {
-        'heartrate/0/value': function (m) {
+        '3346/0/5700': function (m) {
+          // Current heart rate
           return (m['180d']['2a37'][0] << 8) + m['180d']['2a37'][1];
         },
-        'heartrate/0/location': function (m) {
+        '3346/0/5750': function (m) {
+          // Location
           switch (m['180d']['2a38'][0]) {
             case 0:	return 'Other';
             case 1:	return 'Chest';
