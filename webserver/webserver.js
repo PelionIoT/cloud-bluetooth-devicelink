@@ -102,6 +102,7 @@ app.get('/device/:deveui', wrap(function*(req, res, next) {
         localName: ble.getLocalName(address) || 'Unknown',
         state: mapState(device.state),
         stateError: device.stateError ? (' - ' + device.stateError) : '',
+        registrationError: device.registrationError ? (' - ' + device.registrationError) : '',
         read: read,
         write: write,
         saved: !device.error && (req._parsedUrl.query || '').indexOf('saved') > -1,
@@ -239,6 +240,9 @@ io.on('connection', socket => {
         devices[eui].on('endpointchange', en = function(endpoint) {
             socket.emit('endpointchange', endpoint);
         });
+        devices[eui].on('registrationfailed', rf = function(err) {
+            socket.emit('registrationfailed', err);
+        });
         devices[eui].on('supports-update-change', su = function(update) {
             socket.emit('supportsupdatechange', update ? '- Supports update' : '');
         });
@@ -271,6 +275,7 @@ io.on('connection', socket => {
                 devices[eui].removeListener('lwm2mchange', lc);
                 devices[eui].removeListener('localnamechange', ln);
                 devices[eui].removeListener('endpointchange', en);
+                devices[eui].removeListener('registrationfailed', rf);
                 devices[eui].removeListener('supports-update-change', su);
                 devices[eui].removeListener('fota-progress', fp);
                 devices[eui].removeListener('fota-complete', fc);

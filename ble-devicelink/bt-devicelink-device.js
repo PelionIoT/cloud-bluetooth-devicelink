@@ -65,10 +65,16 @@ function BtDeviceLinkDevice(address, cloudDefinition, cloudDevice) {
                 this.cloudDevice.register(this.model, this.supportsUpdate)
                     .then(() => {
                         this.registered = true;
+                        this.registrationError = null;
                         this.emit('endpointchange', this.cloudDevice.endpoint);
                         console.log(CON_PREFIX, '[' + this.address + ']', 'Registered', this.cloudDevice.endpoint);
                     })
-                    .catch((err) => console.log(CON_PREFIX, '[' + this.address + ']', 'Registration failed', err));
+                    .catch((err) => {
+                        this.registered = false;
+                        this.registrationError = err;
+                        this.emit('registrationfailed', err);
+                        console.log(CON_PREFIX, '[' + this.address + ']', 'Registration failed', err);
+                    });
                 break;
             case 'disconnected':
                 if (!this.registered) return;

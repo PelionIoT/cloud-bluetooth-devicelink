@@ -12,7 +12,7 @@ Start via:
 
 ```
 # start mbed Cloud Edge
-$ ./path-to-mbed-cloud-edge 9100 9101
+$ ./path-to-mbed-cloud-edge -p 9100
 
 # install and start mbed Cloud Bluetooth Devicelink
 $ npm install
