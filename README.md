@@ -44,9 +44,9 @@ Defines what should happen when translating BLE GATT characteristic value into L
 
 ```js
 {
-    // led/0/color is LWM2M resource here
+    // 3311/0/5706 is LWM2M resource here
 
-    "led/0/color": function (m) {
+    "3311/0/5706": function (m) {
         // m contains the full BLE GATT model (e.g. m['180a'] is the 180a service)
         // and m['180a']['2a29'] is char 2a29 under that service
         // Characteristics always return a Buffer, so you'll need to do some work to 'un-buffer' it.
@@ -64,9 +64,9 @@ Defines what should happen when a resource was updated in mbed Device Connector,
 
 ```js
 {
-    // actuator/0/action is the LWM2M resource
+    // 3357/0/5501 is the LWM2M resource
 
-    "actuator/0/action": function (value, write) {
+    "3357/0/5501": function (value, write) {
         // 'value' contains the new value (seen from Connector) as a *string*
         // write is a function which you can use to write to a characteristic. it has 2 arguments
         //    * BLE path => '180a/2a29' for char 2a29 under service 180a
