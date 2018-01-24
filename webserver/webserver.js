@@ -156,17 +156,17 @@ app.get('/new-device', wrap(function*(req, res, next) {
 }));
 
 app.post('/new-device', wrap(function*(req, res, next) {
-    // add the device in mbed Client Service
+    // add the device in Mbed Cloud Edge
     let clientDevice;
     try {
         clientDevice = yield clientService.createCloudDevice(req.body.eui, 'test');
     }
     catch (ex) {
-        console.error(CON_PREFIX, 'Creating device in mbed-client-service failed', ex);
-        throw 'Creating device in mbed-client-service failed, ' + ex.message;
+        console.error(CON_PREFIX, 'Creating device in Mbed Cloud Edge failed', ex);
+        throw 'Creating device in Mbed Cloud Edge failed, ' + ex.message;
     }
 
-    console.log(CON_PREFIX, 'Created new device in mbed-client-service');
+    console.log(CON_PREFIX, 'Created new device in Mbed Cloud Edge');
 
     var file = JSON.stringify({
         type: 'create-device',
