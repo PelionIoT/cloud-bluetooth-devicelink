@@ -25,6 +25,8 @@ Navigate to the web interface at http://localhost:3000 and add your device.
 
 **Note on macOS:** If you don't see any devices, and `--log-seen-devices` yields your device with an 'unknown' MAC address; start the process with `--mac-os-fix` *once*, then start the process normally.
 
+### Options
+
 * `--log-seen-devices` - logs all devices seen, useful for debugging.
 * `--client-service [url]` - sets the path to the mbed Cloud Devicelink service.
 
