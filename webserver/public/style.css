@@ -1,7 +1,9 @@
+@import url('https://fonts.googleapis.com/css?family=Lato');
+
 #header { margin-top: 20px; }
 #logo { width: 167px; }
 body {
-  font-family: 'Open Sans', Arial, sans-serif;
+  font-family: "Lato", sans-serif;
   margin: 0;
   padding: 0 20px;
   font-weight: 300;
@@ -9,10 +11,7 @@ body {
   font-size: 16px;
 }
 h1 {
-  background-color: #159ab5;
-  background-image: url('/blueband_BG.png');
-  background-position-x: right;
-  background-size: 140%;
+  background: linear-gradient(45deg, #0091BD, #002B49);
   color: white;
   font-weight: 400;
   font-size: 48px;

@@ -9,10 +9,16 @@
     "chokidar": "^1.4.3",
     "co": "^4.6.0",
     "co-express": "^1.2.1",
-    "es6-promisify": "^4.0.0",
+    "es6-promisify": "^5.0.0",
     "express": "^4.13.4",
     "hbs": "^4.0.0",
-    "noble": "^1.3.0",
-    "socket.io": "^1.4.5"
+    "mbed-cloud-edge-js": "git+ssh://git@github.com/armmbed/mbed-cloud-edge-js.git",
+    "msgpack": "^1.0.2",
+    "msgpack-rpc": "git+https://github.com/janjongboom/node-msgpack-rpc.git",
+    "noble": "git://github.com/jacobrosenthal/noble.git#highsierra",
+    "request": "^2.81.0",
+    "socket.io": "^1.4.5",
+    "ssh2": "^0.5.5",
+    "web-bluetooth-dfu": "git+https://github.com/janjongboom/web-bluetooth-dfu.git#devicelink"
   }
 }

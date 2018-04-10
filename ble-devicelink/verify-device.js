@@ -14,9 +14,7 @@ module.exports = function verifyDevice(device) {
     assert(typeof device.security, 'object', 'device.security');
     assert(typeof device.security.mbed_domain, 'string', 'device.security.mbed_domain');
     assert(typeof device.security.mbed_endpoint_name, 'string', 'device.security.mbed_endpoint_name');
-    assert(typeof device.security.server_cert, 'string', 'device.security.server_cert');
-    assert(typeof device.security.cert, 'string', 'device.security.cert');
-    assert(typeof device.security.key, 'string', 'device.security.key');
+    assert(typeof device.security.access_key, 'string', 'device.security.access_key');
     assert(typeof device.read, 'object', 'device.read');
 
     Object.keys(device.read).forEach(k => {

@@ -1,3 +1,5 @@
+const CON_PREFIX = '\x1b[33m[BTDevicelink]\x1b[0m';
+
 var express = require('express');
 var bodyParser = require('body-parser');
 var co = require('co');
@@ -5,8 +7,6 @@ var wrap = require('co-express');
 var promisify = require('es6-promisify');
 var fs = require('fs');
 var Path = require('path');
-var vm = require('vm');
-var verify = require('../verify-device.js');
 var app = require('express')();
 var server = require('http').Server(app);
 var io = require('socket.io')(server);
@@ -18,7 +18,7 @@ app.engine('html', require('hbs').__express);
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: false }));
 
-module.exports = function start(devices, seen, ee, createDevice) {
+module.exports = function start(devices, ble, deviceDb, clientService) {
 
 function mapState(state) {
     switch (state) {
@@ -44,51 +44,28 @@ function mapState(state) {
 function stringifyGatt(gatt) {
     return gatt ? '{\n' + Object.keys(gatt).map(sk => {
         return `    "${sk}": {\n` + Object.keys(gatt[sk]).map(ck => {
-            return `        "${ck}": [ ${gatt[sk][ck].join(', ')} ]`;
-        }).join(',\n') + '\n    }';
-    }).join(',\n') + '\n}' : 'Waiting for connection...';
+            if (!gatt[sk][ck] || !gatt[sk][ck].value) return undefined;
+            return `        "${ck}": [ ${gatt[sk][ck].value.join(', ')} ]`;
+        }).filter(n => !!n).join(',\n') + '\n    }';
+    }).join(',\n') + '\n}' : '{}';
 }
 
 app.get('/', wrap(function*(req, res) {
-    var fileNames = yield promisify(fs.readdir.bind(fs))((Path.join(__dirname, '../devices')));
 
-    var files = yield Promise.all(fileNames.filter(f => /\.js$/.test(f)).map(f => {
-        return promisify(fs.readFile.bind(fs))(Path.join(__dirname, '../devices', f), 'utf-8');
-    }));
-
-    var model = files.map(f => {
-        var sandbox = { module: {} };
-        var context = new vm.createContext(sandbox);
-        var script = new vm.Script(f);
-        script.runInContext(context);
-
-        var err;
-        try {
-            verify(context.module.exports);
-        }
-        catch (ex) {
-            err = ex;
-        }
-
-        var eui = sandbox.module.exports.deveui;
-        var state = (eui in devices) ?
-            (devices[eui].state === 'connected' ? '\u2713' :
-            mapState(devices[eui].state)) : 'Disconnected';
-
-        var stateError;
-        if (devices[eui] && devices[eui].stateError) {
-            stateError = ' - ' + devices[eui].stateError;
-        }
+    let model = Object.keys(devices).map(address => {
+        let d = devices[address];
+        let state = (d.state === 'connected' ? '\u2713' : mapState(d.state));
+        let stateError = d.stateError ? ' - ' + d.stateError : '';
 
         return {
-            deveui: eui,
-            title: eui + (devices[eui] ? ` (${devices[eui].localName || 'Unknown'})` : ''),
-            localName: devices[eui] ? devices[eui].localName : '',
-            endpoint: sandbox.module.exports.security.mbed_endpoint_name,
+            deveui: d.address,
+            title: d.address + ` (${ble.getLocalName(d.address) || 'Unknown'})`,
+            localName: ble.getLocalName(d.address) || '',
+            endpoint: clientService.getEndpointForId(d.id) || d.address,
             state: state,
             stateError: stateError,
-            notConnected: (devices[eui] || {}).state !== 'connected',
-            error: err
+            notConnected: d.state !== 'connected',
+            error: d.error
         };
     });
 
@@ -99,100 +76,78 @@ app.get('/', wrap(function*(req, res) {
 }));
 
 app.get('/device/:deveui', wrap(function*(req, res, next) {
-    var file = yield promisify(fs.readFile.bind(fs))(Path.join(__dirname, '../devices', req.params.deveui + '.js'), 'utf-8');
+    let device = devices[req.params.deveui];
 
-    var sandbox = { module: {} };
-    var context = new vm.createContext(sandbox);
-    var script = new vm.Script(file);
-    script.runInContext(context);
-
-    var err = null;
-    try {
-        verify(context.module.exports);
-    }
-    catch (ex) {
-        err = ex;
-    }
-
-    var eui = sandbox.module.exports.deveui;
-    var read = '{\n    ' + Object.keys(sandbox.module.exports.read).map(k => {
-        return `"${k}": ${sandbox.module.exports.read[k].toString()}`;
+    var address = req.params.deveui;
+    var read = '{\n    ' + Object.keys(device.cloudDefinition.read).map(k => {
+        return `"${k}": ${device.cloudDefinition.read[k].toString()}`;
     }).join(',\n    ') + '\n}';
-    var write = '{\n    ' + Object.keys(sandbox.module.exports.write).map(k => {
-        return `"${k}": ${sandbox.module.exports.write[k].toString()}`;
+    var write = '{\n    ' + Object.keys(device.cloudDefinition.write).map(k => {
+        return `"${k}": ${device.cloudDefinition.write[k].toString()}`;
     }).join(',\n    ') + '\n}';
 
-    var lwm2m = (devices[eui] && devices[eui].lwm2m) ? Object.keys(devices[eui].lwm2m).reduce((curr, k) => {
-        curr[k] = devices[eui].lwm2m[k].defaultValue;
+    var lwm2m = (device && device.lwm2m) ? Object.keys(device.lwm2m).reduce((curr, k) => {
+        curr[k] = device.lwm2m[k].defaultValue;
         return curr;
     }, {}) : null;
 
-    var gatt = (devices[eui] && devices[eui].model) ? Object.keys(devices[eui].model).reduce((curr, s) => {
-        var service = devices[eui].model[s];
-        curr[s] = Object.keys(service).reduce((curr, c) => {
-            if (service[c]) {
-                curr[c] = [].slice.call(service[c]);
-            }
-            return curr;
-        }, {});
-        return curr;
-    }, {}) : null;
+    var gatt = (ble.getDevice(address) || {}).model;
 
     // stringify gatt myself...
-    var gatt_str = stringifyGatt(gatt);
+    var gatt_str = gatt ? stringifyGatt(gatt) : JSON.stringify({});
 
     var model = {
-        deveui: eui,
-        endpoint: sandbox.module.exports.security.mbed_endpoint_name,
-        localName: (eui in devices) ? (devices[eui].localName || eui) : 'Unknown',
-        state: (eui in devices) ? mapState(devices[eui].state) : 'Disconnected',
-        stateError: (devices[eui] && devices[eui].stateError ? (' - ' + devices[eui].stateError) : ''),
+        deveui: address,
+        endpoint: clientService.getEndpointForId(device.id) || 'Not registered',
+        localName: ble.getLocalName(address) || 'Unknown',
+        state: mapState(device.state),
+        stateError: device.stateError ? (' - ' + device.stateError) : '',
+        registrationError: device.registrationError ? (' - ' + device.registrationError) : '',
         read: read,
         write: write,
-        saved: !err && (req._parsedUrl.query || '').indexOf('saved') > -1,
-        created: !err && (req._parsedUrl.query || '').indexOf('created') > -1,
-        error: err,
+        saved: !device.error && (req._parsedUrl.query || '').indexOf('saved') > -1,
+        created: !device.error && (req._parsedUrl.query || '').indexOf('created') > -1,
+        error: device.error,
         gatt: gatt_str,
         lwm2m: lwm2m ? JSON.stringify(lwm2m, null, 4) : 'Waiting for connection...',
-        unconfigured: (Object.keys(sandbox.module.exports.read).length === 1 &&
-            Object.keys(sandbox.module.exports.read)[0] === 'example/0/rule') ? 'unconfigured' : '',
-        mbed_type: sandbox.module.exports.security.mbed_type || ''
+        unconfigured: (
+            Object.keys(device.cloudDefinition.read).length === 1 &&
+            Object.keys(device.cloudDefinition.write).length &&
+            Object.keys(device.cloudDefinition.read)[0] === '3347/0/5500' &&
+            Object.keys(device.cloudDefinition.write)[0] === '3311/0/5850'
+        ) ? 'unconfigured' : '',
+        mbed_type: device.cloudDefinition.security.mbed_type || '',
+        supportsUpdate: device.supportsUpdate ? '- Supports update' : ''
     };
-    
+
     res.render('device.html', model);
 }));
 
 app.post('/device/:deveui/update', wrap(function*(req, res) {
-    var p = Path.join(__dirname, '../devices', req.params.deveui + '.js');
-    var file = yield promisify(fs.readFile.bind(fs))(p, 'utf-8');
-
-    var sandbox = { module: {} };
-    var context = new vm.createContext(sandbox);
-    var script = new vm.Script(file);
-    script.runInContext(context);
+    let d = devices[req.params.deveui].cloudDefinition;
 
     if (req.body.mbed_type) {
-        sandbox.module.exports.security.mbed_type = req.body.mbed_type;
+        d.security.mbed_type = req.body.mbed_type;
     }
 
-    sandbox.module.exports.read = '1PLACEHOLDER';
-    sandbox.module.exports.write = '2PLACEHOLDER';
+    d.read = '1PLACEHOLDER';
+    d.write = '2PLACEHOLDER';
 
-    var data = (JSON.stringify(sandbox.module.exports, null, 4));
+    var data = (JSON.stringify(d, null, 4));
 
     data = data.replace('"1PLACEHOLDER"', req.body.read);
     data = data.replace('"2PLACEHOLDER"', req.body.write);
 
     data = 'module.exports = ' + data + ';';
 
-    yield promisify(fs.writeFile.bind(fs))(p, data, 'utf-8');
+    yield deviceDb.saveDevice(req.params.deveui, data);
 
     res.redirect('/device/' + req.params.deveui + '?saved');
 }));
 
 app.post('/device/:deveui/delete', wrap(function*(req, res) {
     var p = Path.join(__dirname, '../devices', req.params.deveui + '.js');
-    yield promisify(fs.unlink.bind(fs))(p);
+    yield deviceDb.deleteDevice(req.params.deveui);
 
     res.redirect('/?deleted');
 }));
@@ -202,21 +157,37 @@ app.get('/new-device', wrap(function*(req, res, next) {
 }));
 
 app.post('/new-device', wrap(function*(req, res, next) {
+    // add the device in Mbed Cloud Edge
+    let clientDevice;
+    try {
+        clientDevice = yield clientService.createCloudDevice(req.body.eui, 'test');
+    }
+    catch (ex) {
+        console.error(CON_PREFIX, 'Creating device in Mbed Cloud Edge failed', ex);
+        throw 'Creating device in Mbed Cloud Edge failed, ' + ex.message;
+    }
+
+    console.log(CON_PREFIX, 'Created new device in Mbed Cloud Edge');
+
     var file = JSON.stringify({
         type: 'create-device',
         deveui: req.body.eui,
-        security: JSON.parse(req.body.security),
+        security: {
+            mbed_endpoint_name: clientDevice.id,
+            mbed_domain: req.body.connector_domain,
+            access_key: req.body.connector_ak,
+        },
         read: {
-            "example/0/rule": "1PLACEHOLDER"
+            "3347/0/5500": "1PLACEHOLDER"
         },
         write: {
-            "example/0/rule": "2PLACEHOLDER"
+            "3311/0/5850": "2PLACEHOLDER"
         }
     }, null, 4);
 
     file = file.replace('"1PLACEHOLDER"', 'function (m) {\n' +
         "        // read characteristics like: m['180a']['2a29'].toString('ascii'))\n" +
-        "        return 'Hello world';\n" +
+        "        return 1337;\n" +
         "    }");
     file = file.replace('"2PLACEHOLDER"', 'function (value, write) {\n' +
         "        // write characteristics like: write('180a/2a29', [ 0x10, 0x30 ])\n" +
@@ -225,9 +196,9 @@ app.post('/new-device', wrap(function*(req, res, next) {
 
     file = 'module.exports = ' + file + ';';
 
-    yield promisify(fs.writeFile.bind(fs))(Path.join(__dirname, '../devices', req.body.eui + '.js'), file, 'utf-8');
+    yield deviceDb.saveNewDevice(req.body.eui, file);
 
-    createDevice(req.body.eui);
+    devices[req.body.eui] = yield deviceDb.loadDevice(req.body.eui);
 
     res.redirect('/device/' + req.body.eui + '?created');
 }));
@@ -252,18 +223,42 @@ io.on('connection', socket => {
         if (!devices[eui]) return;
 
         socket.emit('statechange', mapState(devices[eui].state), '');
-        socket.emit('modelchange', stringifyGatt(devices[eui].model));
+        socket.emit('modelchange', stringifyGatt((ble.getDevice(eui) || {}).model));
         socket.emit('lwm2mchange', JSON.stringify(devices[eui].lwm2m, null, 4));
 
-        var sc, mc, lc;
+        let sc, mc, lc, ln, en, su, fp, fc, fe;
 
-        devices[eui].ee.on('statechange', sc = function(state, error) {
+        devices[eui].on('statechange', sc = function(state, error) {
             socket.emit('statechange', mapState(state), error && error.toString());
         });
-        devices[eui].ee.on('modelchange', mc = function(model) {
+        devices[eui].on('ble-model-updated', mc = function(model) {
             socket.emit('modelchange', stringifyGatt(model));
         });
-        devices[eui].ee.on('lwm2mchange', lc = function(model) {
+        devices[eui].on('localnamechange', ln = function(name) {
+            socket.emit('localnamechange', name);
+        });
+        devices[eui].on('endpointchange', en = function(endpoint) {
+            socket.emit('endpointchange', endpoint);
+        });
+        devices[eui].on('registrationfailed', rf = function(err) {
+            socket.emit('registrationfailed', err);
+        });
+        devices[eui].on('supports-update-change', su = function(update) {
+            socket.emit('supportsupdatechange', update ? '- Supports update' : '');
+        });
+        devices[eui].on('fota-progress', fp = function(progress) {
+            socket.emit('fotaprogress', progress);
+        });
+        devices[eui].on('fota-complete', fc = function() {
+            socket.emit('fotacomplete');
+        });
+        devices[eui].on('fota-error', fe = function(error) {
+            socket.emit('fotaerror', error);
+        });
+
+
+        // @todo, lwm2mchange is no longer there...
+        devices[eui].on('lwm2mchange', lc = function(model) {
             socket.emit('lwm2mchange', JSON.stringify(model, null, 4));
         });
 
@@ -275,28 +270,35 @@ io.on('connection', socket => {
 
         socket.on('disconnect', () => {
             try {
-                devices[eui].ee.removeListener('statechange', sc);
-                devices[eui].ee.removeListener('modelchange', mc);
-                devices[eui].ee.removeListener('lwm2mchange', lc);
+                devices[eui].removeListener('statechange', sc);
+                devices[eui].removeListener('ble-model-updated', mc);
+                devices[eui].removeListener('lwm2mchange', lc);
+                devices[eui].removeListener('localnamechange', ln);
+                devices[eui].removeListener('endpointchange', en);
+                devices[eui].removeListener('registrationfailed', rf);
+                devices[eui].removeListener('supports-update-change', su);
+                devices[eui].removeListener('fota-progress', fp);
+                devices[eui].removeListener('fota-complete', fc);
+                devices[eui].removeListener('fota-error', fe);
             } catch (ex) {}
         });
     });
 
     socket.on('subscribe-seen', function() {
         var s;
-        ee.on('seen', s = function(dev) {
+        ble.on('seen', s = function(dev) {
             socket.emit('seen', dev);
         });
         socket.on('disconnect', () => {
             try {
-                ee.removeListener(s);
+                ble.removeListener(s);
             } catch(ex) { /*whatever*/ }
         });
     });
 });
 
 server.listen(process.env.PORT || 3000, process.env.IP || '0.0.0.0', function () {
-    console.log('Web server listening on port %s!', process.env.PORT || 3000);
+    console.log(CON_PREFIX, 'Web server listening on port ' + (process.env.PORT || 3000) + '!');
 });
 
 };

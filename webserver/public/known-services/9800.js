@@ -2,7 +2,8 @@
   function generate(m) {
     return {
       read: {
-        "button/0/count": function (m) {
+        "3347/0/5501": function (m) {
+          // Total button count
           return m['9800']['9801'][0];
         }
       }

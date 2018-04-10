@@ -1,0 +1,11 @@
+{
+    "classId": "316d1676-a93b-544c-9b7b-be43a3d5bfa9", 
+    "default-certificates": [
+        {
+            "file": ".update-certificates/default.der"
+        }
+    ], 
+    "private-key": ".update-certificates/default.key.pem", 
+    "signing-script": null, 
+    "vendorId": "fa6b4a53-d5ad-5fdf-be9d-e663e4d41ffe"
+}

@@ -109,6 +109,9 @@
     color: white;
     border-color: pink;
   }
+  #fota {
+    display: none;
+  }
   </style>
 </head>
 
@@ -139,9 +142,15 @@
     </div>
     {{/if}}
 
-    <p><span class="eui">Connector endpoint</span> <span class="euiv">{{endpoint}}</span></p>
-    <p><span class="eui">Connector type</span> <span class="euiv"><input name="mbed_type" placeholder="Enter device type" value="{{mbed_type}}"></span></p>
-    <p><span class="eui">Bluetooth</span> <span class="euiv">{{localName}} - <span id="state">{{state}}</span><span id="stateError">{{stateError}}</span></span></span></p>
+    <p><span class="eui">Cloud endpoint</span> <span class="euiv"><span id="endpoint">{{endpoint}}</span> <span id="supports-update">{{supportsUpdate}}</span> <span id="registration-error">{{registrationError}}</span></p>
+    <p><span class="eui">Cloud type</span> <span class="euiv"><input name="mbed_type" placeholder="Enter device type" value="{{mbed_type}}"></span></p>
+    <p><span class="eui">Bluetooth</span> <span class="euiv"><span id="localname">{{localName}}</span> - <span id="state">{{state}}</span><span id="stateError">{{stateError}}</span></span></span></p>
+    <p id="fota">
+      <span class="eui">Firmware update</span>
+      <span class="euiv">
+        <span id="fota-status"></span>
+      </span>
+    </p>
 
     <div id="autoconfig" class="show-on-unconfigured hide-on-unconnected">
       <h2>Configure your device</h2>
@@ -306,6 +315,41 @@
       if (!modelDirty) {
         document.querySelector('#lwm2m-data').textContent = lw;
       }
+    });
+    socket.on('localnamechange', function(name) {
+      document.querySelector('#localname').textContent = name;
+    });
+    socket.on('endpointchange', function(endpoint) {
+      if (!endpoint) endpoint = 'Not registered';
+
+      document.querySelector('#registration-error').textContent = '';
+      document.querySelector('#endpoint').textContent = endpoint;
+      document.title = 'Change configuration - ' + endpoint;
+    });
+    socket.on('registrationfailed', function(err) {
+      document.querySelector('#registration-error').textContent = ' - ' + err;
+    });
+    socket.on('supportsupdatechange', function(supportsUpdate) {
+      document.querySelector('#supports-update').textContent = supportsUpdate;
+    });
+    socket.on('fotaprogress', function(progress) {
+      document.querySelector('#fota').style.display = 'block';
+      document.querySelector('#fota-status').textContent = progress;
+    });
+    socket.on('fotacomplete', function() {
+      document.querySelector('#fota').style.display = 'block';
+
+      // clear fota bar on connect
+      var osc = function(state) {
+        if (state !== 'Connected') return;
+        socket.removeEventListener('statechange', osc);
+        document.querySelector('#fota').style.display = 'none';
+      };
+      socket.on('statechange', osc);
+    });
+    socket.on('fotaerror', function (error) {
+      document.querySelector('#fota').style.display = 'block';
+      document.querySelector('#fota-status').textContent = 'ERROR: ' + error;
     });
 
     function stateChange(state) {
