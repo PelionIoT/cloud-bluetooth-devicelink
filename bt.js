@@ -3,27 +3,20 @@
 const CON_PREFIX = '\x1b[35m[BTDevicelink]\x1b[0m';
 
 const Path = require('path');
-const BLE = require('./ble-devicelink/./ble');
+const BLE = require('./ble-devicelink/ble');
 const DeviceDb = require('./ble-devicelink/device-db');
 const startWebserver = require('./webserver/webserver');
-const config = require(Path.join(__dirname, 'config', process.argv[2]));
+const config = require('./config/mbed-edge');
 
 let clientService; // needs to be accessible from SIGINT
 
 // During startup, first read the content of the /devices folder and see which devices are already there...
 (async function startup() {
     try {
-        // mbed Client Service reference
-        if (config.clientService === 'ssh-remote') {
-            let RemoteClientService = require('./remote-devicelink-service/ssh-service-lib');
-            clientService = new RemoteClientService(
-                config.remoteClientService.host, config.remoteClientService.username,
-                config.remoteClientService.privateKey, config.remoteClientService.binary);
-        }
-        else if (config.clientService === 'mbed-cloud-edge') {
-            let CloudEdgeService = require('mbed-cloud-edge-js/edge-lib');
+        if (config.clientService === 'mbed-cloud-edge') {
+            let CloudEdgeService = require('mbed-edge-js/edge-lib');
             clientService = new CloudEdgeService(
-                config.cloudEdge.host, config.cloudEdge.port, config.cloudEdge.name
+                config.cloudEdge.socket, config.cloudEdge.name
             );
             await clientService.init();
         }
