@@ -86,7 +86,7 @@ Defines what should happen when a resource was updated in Pelion Device Manageme
     // 3357/0/5501 is the LWM2M resource
 
     "3357/0/5501": function (value, write) {
-        // 'value' contains the new value (seen from Connector) as a *string*
+        // 'value' contains the new value (seen from Pelion Device Management) as a *string*
         // write is a function which you can use to write to a characteristic. it has 2 arguments
         //    * BLE path => '180a/2a29' for char 2a29 under service 180a
         //    * Buffer => array of bytes to be sent to this characteristic
