@@ -103,7 +103,7 @@ Defines what should happen when a resource was updated in Pelion Device Manageme
 
 **Note: This is a preview, and is likely to change.**
 
-Mbed Bluetooth Devicelink can also handle firmware updates for BLE devices. It does this by intercepting an update that comes in from Pelion Device Mannagement, verifying that it was signed by a trusted party, and then hand it off to the native firmware update method. This requires you to sign the update using the manifest-tool, and provision the public key used for this update into Devicelink.
+Mbed Bluetooth Devicelink can also handle firmware updates for BLE devices. It does this by intercepting an update that comes in from Pelion Device Management, verifying that it was signed by a trusted party, and then hand it off to the native firmware update method. This requires you to sign the update using the manifest-tool, and provision the public key used for this update into Devicelink.
 
 Methods supported are:
 
@@ -111,7 +111,7 @@ Methods supported are:
 
 The implementations are pluggable in `ble-devicelink/firmware-updates.js`.
 
-An example firmware (with bootloader), an OTA image, and a pre-signed manifest are already available for the nRF52-DK. See the `firmware/` folder. Flash the `_BOOT` image to your nRF52-DK, provision the device in Devicelink and upload the manifest to Pelion Device Management. Then start an update campaign from Pelion Device Mannagement to update the device. You can also re-sign new firmware with the certificates provided in this folder.
+An example firmware (with bootloader), an OTA image, and a pre-signed manifest are already available for the nRF52-DK. See the `firmware/` folder. Flash the `_BOOT` image to your nRF52-DK, provision the device in Devicelink and upload the manifest to Pelion Device Management. Then start an update campaign from Pelion Device Management to update the device. You can also re-sign new firmware with the certificates provided in this folder.
 
 ## TODO
 
