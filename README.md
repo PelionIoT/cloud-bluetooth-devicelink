@@ -1,22 +1,40 @@
-# mbed Cloud Bluetooth Devicelink
+# Mbed Bluetooth Devicelink
 
-This is an *experimental* way to connect Bluetooth Low Energy devices into mbed Cloud.
+This is an *experimental* way to connect Bluetooth Low Energy devices into Pelion Device Management, built on top of Mbed Edge.
 
-## Setup with mbed Cloud Edge
+## Setup
 
-1. Install mbed Cloud Edge.
-    * You can run mbed Cloud Edge in an Ubuntu VM and this application on your main OS.
-1. Install [node.js 7+](https://nodejs.org/en/).
+1. Install [Mbed Edge](https://github.com/armmbed/mbed-edge) - this application is tested with Mbed Edge 0.5.1.
+1. Install [Node.js 8+](https://nodejs.org/en/).
 
-Start via:
+Then, open a terminal and start Mbed Edge:
 
 ```
-# start mbed Cloud Edge
-$ ./path-to-mbed-cloud-edge -p 9100
+$ ./build/bin/edge-core -o 9101
+```
 
-# install and start mbed Cloud Bluetooth Devicelink
+Open a new terminal, and start Mbed Bluetooth Devicelink:
+
+```
+$ git clone https://github.com/armmbed/cloud-bluetooth-devicelink
 $ npm install
-$ node bt.js mbed-cloud-edge --edge-host 127.0.0.1 --edge-port 9100
+$ node bt.js --edge-url "ws+unix:///tmp/edge.sock"
+```
+
+**Setup in a VM**
+
+Mbed Edge only runs on Linux, but you can run it from a VM, and run Mbed Bluetooth Devicelink from your host OS.
+
+On the VM, forward the socket over TCP:
+
+```
+$ socat TCP-LISTEN:22223,reuseaddr,fork UNIX-CLIENT:/tmp/edge.sock
+```
+
+Then, start Mbed Bluetooth Devicelink:
+
+```
+$ node bt.js --edge-url "ws://YOUR_IP:22223"
 ```
 
 ## Usage
@@ -28,11 +46,10 @@ Navigate to the web interface at http://localhost:3000 and add your device.
 ### Options
 
 * `--log-seen-devices` - logs all devices seen, useful for debugging.
-* `--client-service [url]` - sets the path to the mbed Cloud Devicelink service.
 
 ## Mapping from BLE to LWM2M
 
-Because BLE devices use GATT services and characteristics and mbed Device Connector uses LWM2M resource models, we need to define a mapping between the two.
+Because BLE devices use GATT services and characteristics and Pelion Device Management uses LWM2M resource models, we need to define a mapping between the two.
 
 In the web interface there are two editors, one for read-mappings and one for write-mappings. In both of these you can use JavaScript to write the mappings.
 
@@ -62,7 +79,7 @@ Defines what should happen when translating BLE GATT characteristic value into L
 
 ### Write mapping
 
-Defines what should happen when a resource was updated in mbed Device Connector, and what command should be sent to the BLE device.
+Defines what should happen when a resource was updated in Pelion Device Management, and what command should be sent to the BLE device.
 
 ```js
 {
@@ -84,7 +101,9 @@ Defines what should happen when a resource was updated in mbed Device Connector,
 
 ## Firmware updates
 
-mbed Cloud Bluetooth Devicelink can also handle firmware updates for BLE devices. It does this by intercepting an update that comes in from mbed Cloud, verifying that it was signed by a trusted party, and then hand it off to the native firmware update method. This requires you to sign the update using the manifest-tool, and provision the public key used for this update into Devicelink.
+**Note: This is a preview, and is likely to change.**
+
+Mbed Bluetooth Devicelink can also handle firmware updates for BLE devices. It does this by intercepting an update that comes in from Pelion Device Mannagement, verifying that it was signed by a trusted party, and then hand it off to the native firmware update method. This requires you to sign the update using the manifest-tool, and provision the public key used for this update into Devicelink.
 
 Methods supported are:
 
@@ -92,7 +111,7 @@ Methods supported are:
 
 The implementations are pluggable in `ble-devicelink/firmware-updates.js`.
 
-An example firmware (with bootloader), an OTA image, and a pre-signed manifest are already available for the nRF52-DK. See the `firmware/` folder. Flash the `_BOOT` image to your nRF52-DK, provision the device in Devicelink and upload the manifest to mbed Cloud. Then start an update campaign from mbed Cloud to update the device. You can also re-sign new firmware with the certificates provided in this folder.
+An example firmware (with bootloader), an OTA image, and a pre-signed manifest are already available for the nRF52-DK. See the `firmware/` folder. Flash the `_BOOT` image to your nRF52-DK, provision the device in Devicelink and upload the manifest to Pelion Device Management. Then start an update campaign from Pelion Device Mannagement to update the device. You can also re-sign new firmware with the certificates provided in this folder.
 
 ## TODO
 

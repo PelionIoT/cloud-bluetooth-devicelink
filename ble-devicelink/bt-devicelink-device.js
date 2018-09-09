@@ -5,7 +5,7 @@ const CON_PREFIX = '\x1b[35m[BTDevicelink]\x1b[0m';
 /**
  * Create a new BtDeviceLinkDevice
  * @param address The BLE address of the device
- * @param cloudDefinition Information required to bridge this device into mbed Cloud
+ * @param cloudDefinition Information required to bridge this device into Pelion Device Management
  * @param cloudDevice Instance of the object from mbed-client-service
  */
 function BtDeviceLinkDevice(address, cloudDefinition, cloudDevice) {
@@ -34,7 +34,7 @@ function BtDeviceLinkDevice(address, cloudDefinition, cloudDevice) {
     // bleModel contains the model that holds the BLE characteristics (and current value of chars)
     this.bleModel = {};
 
-    // registered with mbed Cloud
+    // registered with Pelion Device Management
     this.registered = false;
 
     // check registration status
@@ -105,7 +105,7 @@ BtDeviceLinkDevice.prototype.updateState = function(state, error) {
 };
 
 /**
- * Build a LwM2M model to be sent to mbed Cloud, based on the r/w definition and the current model
+ * Build a LwM2M model to be sent to Pelion, based on the r/w definition and the current model
  */
 BtDeviceLinkDevice.prototype.generateLwm2mModel = function(model) {
     let definition = this.cloudDefinition;
@@ -253,7 +253,7 @@ BtDeviceLinkDevice.prototype.onPut = function(path, value) {
 
     let self = this;
 
-    console.log(CON_PREFIX, '[' + this.address + ']', `Write from mbed Cloud for ${path}, value ${value}`);
+    console.log(CON_PREFIX, '[' + this.address + ']', `Write from Pelion for ${path}, value ${value}`);
 
     function write(path, aData) {
         if (!Array.isArray(aData)) aData = [ aData ];
