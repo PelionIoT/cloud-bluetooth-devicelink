@@ -4,13 +4,13 @@ let Path = require('path');
 let logSeenDevicesIx = process.argv.indexOf('--log-seen-devices');
 let logSeenDevices = logSeenDevicesIx  > -1 ? process.argv[logSeenDevicesIx] : false;
 
-let edgeSocketIx = process.argv.indexOf('--edge-socket');
-let edgeSocket;
+let edgeUrlIx = process.argv.indexOf('--edge-url');
+let edgeUrl;
 
-if (edgeSocketIx === -1) {
-    edgeSocket = '/tmp/edge.sock';
+if (edgeUrlIx === -1) {
+    edgeUrl = 'ws+unix:///tmp/edge.sock';
 } else {
-    edgeSocket = process.argv[edgeSocketIx + 1];
+    edgeUrl = process.argv[edgeUrlIx + 1];
 }
 
 let macOsFix = process.argv.indexOf('--mac-os-fix') > -1;
@@ -20,7 +20,7 @@ console.log('\x1b[35m[BTDevicelink]\x1b[0m', 'Starting...');
 module.exports = {
     clientService: 'mbed-cloud-edge',
     cloudEdge: {
-        socket: edgeSocket,
+        url: edgeUrl,
         name: 'bluetooth_devicelink'
     },
     logSeenDevices: logSeenDevices,

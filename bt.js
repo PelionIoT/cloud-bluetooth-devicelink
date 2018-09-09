@@ -7,22 +7,15 @@ const BLE = require('./ble-devicelink/ble');
 const DeviceDb = require('./ble-devicelink/device-db');
 const startWebserver = require('./webserver/webserver');
 const config = require('./config/mbed-edge');
+const CloudEdgeService = require('mbed-edge-js');
 
 let clientService; // needs to be accessible from SIGINT
 
 // During startup, first read the content of the /devices folder and see which devices are already there...
 (async function startup() {
     try {
-        if (config.clientService === 'mbed-cloud-edge') {
-            let CloudEdgeService = require('mbed-edge-js/edge-lib');
-            clientService = new CloudEdgeService(
-                config.cloudEdge.socket, config.cloudEdge.name
-            );
-            await clientService.init();
-        }
-        else {
-            throw 'Unknown clientService "' + config.clientService + '"';
-        }
+        clientService = new CloudEdgeService(config.cloudEdge.url, config.cloudEdge.name);
+        await clientService.init();
 
         // add a device database
         let deviceDb = new DeviceDb(config.deviceFolder, clientService);

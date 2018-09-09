@@ -18,7 +18,23 @@ Open a new terminal, and start Mbed Bluetooth Devicelink:
 ```
 $ git clone https://github.com/armmbed/cloud-bluetooth-devicelink
 $ npm install
-$ node bt.js mbed-edge --edge-socket "/tmp/edge.sock"
+$ node bt.js --edge-url "ws+unix:///tmp/edge.sock"
+```
+
+**Setup in a VM**
+
+Mbed Edge only runs on Linux, but you can run it from a VM, and run Mbed Bluetooth Devicelink from your host OS.
+
+On the VM, forward the socket over TCP:
+
+```
+$ socat TCP-LISTEN:22223,reuseaddr,fork UNIX-CLIENT:/tmp/edge.sock
+```
+
+Then, start Mbed Bluetooth Devicelink:
+
+```
+$ node bt.js --edge-url "ws://YOUR_IP:22223"
 ```
 
 ## Usage
