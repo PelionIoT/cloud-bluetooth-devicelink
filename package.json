@@ -12,13 +12,11 @@
     "es6-promisify": "^5.0.0",
     "express": "^4.13.4",
     "hbs": "^4.0.0",
-    "mbed-edge-js": "file:mbed-edge-js",
+    "mbed-edge-js": "^3.0.0",
     "msgpack": "^1.0.2",
-    "msgpack-rpc": "git+https://github.com/janjongboom/node-msgpack-rpc.git",
-    "noble": "git://github.com/jacobrosenthal/noble.git#highsierra",
+    "noble": "^1.9.1",
     "request": "^2.81.0",
     "socket.io": "^1.4.5",
-    "ssh2": "^0.5.5",
     "web-bluetooth-dfu": "git+https://github.com/janjongboom/web-bluetooth-dfu.git#devicelink"
   }
 }
