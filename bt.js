@@ -8,6 +8,7 @@ const DeviceDb = require('./ble-devicelink/device-db');
 const startWebserver = require('./webserver/webserver');
 const config = require('./config/mbed-edge');
 const CloudEdgeService = require('mbed-edge-js');
+const promisify = require('es6-promisify');
 
 let clientService; // needs to be accessible from SIGINT
 
@@ -35,6 +36,107 @@ let clientService; // needs to be accessible from SIGINT
         // instantiate the BLE library
         let ble = new BLE(devices, config.logSeenDevices, config.macOsFix);
         ble.startScanning();
+
+        ble.on('seen', async function(device) {
+            if (device.name === 'arm-AutoV1' && device.eui !== 'unknown') {
+                try {
+                    console.log(CON_PREFIX, 'Auto-adding arm-AutoV1 device', device);
+
+                    // add the device in Mbed Edge
+                    let clientDevice = await clientService.createCloudDevice(device.eui, 'test');
+
+                    console.log(CON_PREFIX, 'Created new device in Mbed Edge');
+
+                    var file = JSON.stringify({
+                        type: 'create-device',
+                        deveui: device.eui,
+                        security: {
+                            mbed_endpoint_name: clientDevice.id
+                        },
+                        read: "PLACEHOLDER1",
+                        write: {
+                        }
+                    }, null, 4);
+
+                    file = file.replace('"PLACEHOLDER1"', `{
+        // DEVICE_ACTIVED_CHARACTERISTIC_UUID
+        "7141/0/3347": function(m) {
+            return m['a002']['a003'][0];
+        },
+        // START_TEMP_CHARACTERISTIC_UUID
+        "7141/0/3303": function(m) {
+            var tempArray = m['a002']['a004']
+            var buffer = new ArrayBuffer(4);
+            var intView = new Uint32Array(buffer);
+            intView[0] = 0;
+            for (var i = 0; i < 3; i++) {
+                intView[0] += tempArray[3 - i] << (i * 8);
+            }
+            var dv = new DataView(buffer);
+            return dv.getFloat32(0);
+        },
+        // TIME_TO_MINIMA_CHARACTERISTIC_UUID
+        "7141/0/3350": function(m) {
+            var t = m['a002']['a005']
+            return (t[0]) + (t[1] << 8) + (t[2] << 16) + (t[3] << 24);
+        },
+        // MINI_TEMP_CHARACTERISTIC_UUID
+        "7141/0/3320": function(m) {
+            var tempArray = m['a002']['a006']
+            var buffer = new ArrayBuffer(4);
+            var intView = new Uint32Array(buffer);
+            intView[0] = 0;
+            for (var i = 0; i < 3; i++) {
+                intView[0] += tempArray[3 - i] << (i * 8);
+            }
+            var dv = new DataView(buffer);
+            return dv.getFloat32(0);
+        },
+        // MAX_STORAGE_TEMP_CHARACTERISTIC_UUID
+        "7141/1/3303": function(m) {
+            var tempArray = m['a002']['a007']
+            var buffer = new ArrayBuffer(4);
+            var intView = new Uint32Array(buffer);
+            intView[0] = 0;
+            for (var i = 0; i < 3; i++) {
+                intView[0] += tempArray[3 - i] << (i * 8);
+            }
+            var dv = new DataView(buffer);
+            return dv.getFloat32(0);
+        },
+        // TIME_ABOVE_SAFE_TEMP_CHARACTERISTIC_UUID
+        "7141/0/6006": function(m) {
+            var t = m['a002']['a008']
+            return (t[0]) + (t[1] << 8) + (t[2] << 16) + (t[3] << 24);
+        },
+        // TEMP_AT_RECOVERY_CHARACTERISTIC_UUID
+        "7141/1/3320": function(m) {
+            var tempArray = m['a002']['a009']
+            var buffer = new ArrayBuffer(4);
+            var intView = new Uint32Array(buffer);
+            intView[0] = 0;
+            for (var i = 0; i < 3; i++) {
+                intView[0] += tempArray[3 - i] << (i * 8);
+            }
+            var dv = new DataView(buffer);
+            return dv.getFloat32(0);
+        },
+        // MINUTES_SINCE_INJECTION_CHARACTERISTIC_UUID
+        "7141/1/6006": function(m) {
+            var t = m['a002']['a00a']
+            return (t[0]) + (t[1] << 8) + (t[2] << 16) + (t[3] << 24);
+        }
+    }\n`);
+
+                    file = 'module.exports = ' + file + ';';
+
+                    await deviceDb.saveNewDevice(device.eui, file);
+                }
+                catch (ex) {
+                    console.error(CON_PREFIX, 'Auto-adding device failed', ex);
+                }
+            }
+        });
 
         // events from the db
         deviceDb.on('add', address => {
