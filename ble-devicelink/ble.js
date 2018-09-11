@@ -47,7 +47,7 @@ BLE.prototype.onDiscover = function (peripheral) {
     }
 
     if (this.logSeenDevices) {
-        if (ad.localName !== undefined || address !== 'unknown') {
+        if (ad.localName !== undefined && address !== 'unknown') {
             console.log(CON_PREFIX, 'Seen device', ad.localName, address);
         }
     }
