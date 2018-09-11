@@ -96,7 +96,13 @@ BLE.prototype.connect = function (device, peripheral, localName) {
 
     let bleDevice = device.bleDevice = new BLEDevice(peripheral, localName);
 
-    bleDevice.on('state-change', (msg, ex) => device.updateState(msg, ex));
+    bleDevice.on('state-change', (msg, ex) => {
+        device.updateState(msg, ex);
+
+        if (msg === 'disconnected') {
+            ble.startScanning();
+        }
+    });
     bleDevice.on('model-change', model => {
         device.bleModelUpdated(model);
     });

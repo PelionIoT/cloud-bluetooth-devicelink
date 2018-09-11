@@ -183,8 +183,6 @@ let clientService; // needs to be accessible from SIGINT
             clientService.deleteDevice(devices[address].cloudDevice.id);
 
             delete devices[address];
-
-            ble.startScanning();
         });
 
         // Start the webserver
