@@ -38,24 +38,29 @@ let clientService; // needs to be accessible from SIGINT
         let ble = new BLE(devices, config.logSeenDevices, config.macOsFix);
         ble.startScanning();
 
+        let autoConnect = {};
+
         ble.on('seen', async function(device) {
             let name = device.name.trim();
             let eui = device.eui.trim();
+            if (autoConnect[eui]) return;
             if (name.indexOf('arm') > -1) {
                 console.log('seen', device);
             }
-            if (name.indexOf('arm-AutoV1') === 0 && device.eui !== 'unknown') {
+            if (name.indexOf('arm-AutoV1') === 0 && eui !== 'unknown') {
+                autoConnect[eui] = true;
+
                 try {
                     console.log(CON_PREFIX, 'Auto-adding arm-AutoV1 device', device);
 
                     // add the device in Mbed Edge
-                    let clientDevice = await clientService.createCloudDevice(device.eui, 'test');
+                    let clientDevice = await clientService.createCloudDevice(eui, 'test');
 
                     console.log(CON_PREFIX, 'Created new device in Mbed Edge');
 
                     var file = JSON.stringify({
                         type: 'create-device',
-                        deveui: device.eui,
+                        deveui: eui,
                         security: {
                             mbed_endpoint_name: clientDevice.id
                         },
