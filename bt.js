@@ -1,4 +1,5 @@
 'use strict';
+//remove this comment
 
 const CON_PREFIX = '\x1b[35m[BTDevicelink]\x1b[0m';
 
