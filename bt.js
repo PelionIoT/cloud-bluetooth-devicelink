@@ -39,10 +39,11 @@ let clientService; // needs to be accessible from SIGINT
 
         ble.on('seen', async function(device) {
             let name = device.name.trim();
+            let eui = device.eui.trim();
             if (name.indexOf('arm') > -1) {
                 console.log('seen', device);
             }
-            if (name === 'arm-AutoV1' && device.eui !== 'unknown') {
+            if (name.indexOf('arm-AutoV1') === 0 && device.eui !== 'unknown') {
                 try {
                     console.log(CON_PREFIX, 'Auto-adding arm-AutoV1 device', device);
 
