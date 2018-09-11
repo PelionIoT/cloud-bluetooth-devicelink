@@ -8,7 +8,7 @@ let edgeUrlIx = process.argv.indexOf('--edge-url');
 let edgeUrl;
 
 if (edgeUrlIx === -1) {
-    edgeUrl = 'ws+unix:///tmp/edge.sock';
+    edgeUrl = 'ws+unix:///tmp/edge.sock:';
 } else {
     edgeUrl = process.argv[edgeUrlIx + 1];
 }

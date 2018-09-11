@@ -18,7 +18,7 @@ Open a new terminal, and start Mbed Bluetooth Devicelink:
 ```
 $ git clone https://github.com/armmbed/cloud-bluetooth-devicelink
 $ npm install
-$ node bt.js --edge-url "ws+unix:///tmp/edge.sock"
+$ node bt.js --edge-url "ws+unix:///tmp/edge.sock:"
 ```
 
 **Setup in a VM**
