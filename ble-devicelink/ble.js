@@ -100,7 +100,7 @@ BLE.prototype.connect = function (device, peripheral, localName) {
         device.updateState(msg, ex);
 
         if (msg === 'disconnected') {
-            ble.startScanning();
+            this.startScanning();
         }
     });
     bleDevice.on('model-change', model => {
