@@ -12,7 +12,7 @@
     "es6-promisify": "^5.0.0",
     "express": "^4.13.4",
     "hbs": "^4.0.0",
-    "mbed-edge-js": "^3.0.0",
+    "mbed-edge-js": "^3.1.0",
     "msgpack": "^1.0.2",
     "noble": "^1.9.1",
     "request": "^2.81.0",

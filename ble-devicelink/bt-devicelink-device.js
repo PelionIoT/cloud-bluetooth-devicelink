@@ -1,6 +1,13 @@
 const EventEmitter = require('events');
 const fota = require('./firmware-updates');
+const fs = require('fs');
+const Path = require('path');
 const CON_PREFIX = '\x1b[35m[BTDevicelink]\x1b[0m';
+
+// !!! NOTE: this is all hard-coded now, needs to move to the device declaration !!!
+const vendorId = 'fa6b4a53-d5ad-5fdf-be9d-e663e4d41ffe';
+const classId = '316d1676-a93b-544c-9b7b-be43a3d5bfa9';
+const updateCertificateBuffer = fs.readFileSync(Path.join(__dirname, '..', 'firmware', '.update-certificates', 'default.der'));
 
 /**
  * Create a new BtDeviceLinkDevice
@@ -62,7 +69,7 @@ function BtDeviceLinkDevice(address, cloudDefinition, cloudDevice) {
                 if (this.registered) return;
 
                 console.log(CON_PREFIX, '[' + this.address + ']', 'Registering');
-                this.cloudDevice.register(this.model, this.supportsUpdate)
+                this.cloudDevice.register(this.model, this.supportsUpdate, vendorId, classId, updateCertificateBuffer)
                     .then(() => {
                         this.registered = true;
                         this.registrationError = null;
@@ -206,7 +213,7 @@ BtDeviceLinkDevice.prototype.bleModelUpdated = function(model) {
                 console.log(CON_PREFIX, '[' + this.address + ']', 'OK Deregister');
 
                 console.log(CON_PREFIX, '[' + this.address + ']', 'Register');
-                await this.cloudDevice.register(curr, this.supportsUpdate);
+                await this.cloudDevice.register(curr, this.supportsUpdate, vendorId, classId, updateCertificateBuffer);
                 console.log(CON_PREFIX, '[' + this.address + ']', 'OK Register');
 
                 this.modelUpdateInProgress = false;
