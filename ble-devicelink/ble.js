@@ -88,6 +88,8 @@ BLE.prototype.onDiscover = function (peripheral) {
 };
 
 BLE.prototype.connect = function (device, peripheral, localName) {
+    let self = this;
+
     console.log(CON_PREFIX, 'Connecting to', localName, peripheral.address);
 
     // update the state of the device
@@ -101,7 +103,7 @@ BLE.prototype.connect = function (device, peripheral, localName) {
 
         // Raspberry Pi 3 doesn't restart scanning, macOS does
         if (msg === 'disconnected' || msg === 'connection-failed' || msg === 'connected') {
-            ble.startScanning();
+            self.startScanning();
         }
     });
     bleDevice.on('model-change', model => {
